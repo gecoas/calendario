@@ -1,0 +1,56 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: production-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: [self-hosted, opencode, docker, production, deploy]
+
+    steps:
+      - name: Deploy by local runner
+        run: |
+          set -euo pipefail
+
+          PROJECT_NAME="calendario"
+          PROD_HOST="192.168.35.27"
+          PROD_PATH="/opt/proyectos/calendario"
+          REPO_SSH="git@github-gecoas-prod:gecoas/calendario.git"
+
+          ssh deploy@$PROD_HOST "
+            set -euo pipefail
+
+            mkdir -p '$PROD_PATH'
+            cd '$PROD_PATH'
+
+            if [ ! -d .git ]; then
+              echo 'No existe .git en producción. Inicializando repo...'
+              git init
+              git remote add origin '$REPO_SSH' 2>/dev/null || git remote set-url origin '$REPO_SSH'
+            else
+              git remote set-url origin '$REPO_SSH'
+            fi
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Limpia restos antiguos del despliegue, pero conserva .env y datos compartidos.
+            git clean -fd -e .env -e shared/ -e 'shared/**'
+
+            if [ ! -f .env ] && [ -f .env.example ]; then
+              cp .env.example .env
+            fi
+
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+            docker image prune -f
+
+            echo 'Deploy completado correctamente'
+            docker compose -f docker-compose.prod.yml ps
+          "
