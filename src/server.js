@@ -255,7 +255,7 @@ async function createApp() {
     secret: config.sessionSecret,
     resave: false,
     saveUninitialized: false,
-    cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' }
+    cookie: { httpOnly: true, sameSite: 'lax', secure: 'auto' }
   }));
   app.use(express.static(path.join(rootDir, 'public')));
 

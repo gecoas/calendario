@@ -35,11 +35,13 @@ function escapeHtml(value) {
 
 async function request(path, options = {}) {
   const response = await fetch(path, {
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options
   });
   const contentType = response.headers.get('content-type') || '';
   const body = contentType.includes('application/json') ? await response.json() : await response.blob();
+  if (response.status === 401) throw new Error('Sesion caducada. Vuelve a entrar como administrador y guarda de nuevo.');
   if (!response.ok) throw new Error(body.error || 'Error en la solicitud');
   return body;
 }
@@ -180,6 +182,7 @@ async function downloadPdf() {
   pdfStatus.textContent = 'Creando PDF...';
   const response = await fetch('/api/families/pdf', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       from: document.querySelector('#pdf-from').value,
