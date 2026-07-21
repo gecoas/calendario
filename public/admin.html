@@ -45,7 +45,27 @@
       <p>Pega aqui la URL de Google Calendar. Lo mas fiable es usar la direccion publica o secreta en formato iCal. Las URLs <code>embed</code> solo funcionaran si Google permite convertirlas a iCal publico.</p>
       <label>Enlace del calendario <input id="calendar-url" type="url" placeholder="https://calendar.google.com/calendar/..."></label>
       <label>URL iCal resuelta <input id="calendar-resolved-url" readonly></label>
-      <button id="save-calendar-url">Guardar calendario</button>
+      <h2>Envio de correos</h2>
+      <div class="grid two">
+        <label>Remitente <input id="mail-from-address" placeholder="Calendario Colegio &lt;no-reply@gecoas.es&gt;"></label>
+        <label>Correo del administrador <input id="mail-admin-recipient" type="email" placeholder="admin@gecoas.es"></label>
+      </div>
+      <div class="grid two">
+        <label>Correo profesores <input id="mail-teachers-recipient" type="email" placeholder="profesores@alcaste-lasfuentes.com"></label>
+        <label>Servidor SMTP <input id="smtp-host" placeholder="smtp.example.com"></label>
+      </div>
+      <div class="grid">
+        <label>Puerto SMTP <input id="smtp-port" type="number" min="1" value="587"></label>
+        <label>Seguridad SMTP
+          <select id="smtp-secure">
+            <option value="false">STARTTLS / 587</option>
+            <option value="true">SSL / 465</option>
+          </select>
+        </label>
+        <label>Usuario SMTP <input id="smtp-user" autocomplete="username"></label>
+        <label>Contrasena SMTP <input id="smtp-pass" type="password" autocomplete="new-password" placeholder="Dejar en blanco para no cambiar"></label>
+      </div>
+      <button id="save-settings">Guardar configuracion</button>
       <p id="settings-status" class="status"></p>
     </section>
 

@@ -31,6 +31,14 @@ async function writeJson(file, data) {
 async function saveConfig(updates) {
   const config = await loadConfig(false);
   config.googleCalendar = { ...(config.googleCalendar || {}), ...(updates.googleCalendar || {}) };
+  if (updates.mail) {
+    config.mail = {
+      ...(config.mail || {}),
+      ...updates.mail,
+      smtp: { ...(config.mail?.smtp || {}), ...(updates.mail.smtp || {}) },
+      recipients: { ...(config.mail?.recipients || {}), ...(updates.mail.recipients || {}) }
+    };
+  }
   delete config.sessionSecret;
   await writeJson(runtimeConfigPath, config);
   return config;
@@ -77,11 +85,14 @@ async function loadConfig(applyEnv = true) {
   config.googleCalendar = config.googleCalendar || {};
   if (applyEnv) {
     config.admin.password = process.env.ADMIN_PASSWORD || config.admin.password;
-    config.mail.smtp.host = process.env.SMTP_HOST || config.mail.smtp.host;
-    config.mail.smtp.port = Number(process.env.SMTP_PORT || config.mail.smtp.port || 587);
-    config.mail.smtp.secure = String(process.env.SMTP_SECURE || config.mail.smtp.secure) === 'true';
-    config.mail.smtp.user = process.env.SMTP_USER || config.mail.smtp.user;
-    config.mail.smtp.pass = process.env.SMTP_PASS || config.mail.smtp.pass;
+    config.mail.from = runtimeConfig.mail?.from || config.mail.from;
+    config.mail.recipients.admin = runtimeConfig.mail?.recipients?.admin || config.mail.recipients.admin;
+    config.mail.recipients.teachers = runtimeConfig.mail?.recipients?.teachers || config.mail.recipients.teachers;
+    config.mail.smtp.host = runtimeConfig.mail?.smtp?.host || process.env.SMTP_HOST || config.mail.smtp.host;
+    config.mail.smtp.port = Number(runtimeConfig.mail?.smtp?.port || process.env.SMTP_PORT || config.mail.smtp.port || 587);
+    config.mail.smtp.secure = typeof runtimeConfig.mail?.smtp?.secure === 'boolean' ? runtimeConfig.mail.smtp.secure : String(process.env.SMTP_SECURE || config.mail.smtp.secure) === 'true';
+    config.mail.smtp.user = runtimeConfig.mail?.smtp?.user || process.env.SMTP_USER || config.mail.smtp.user;
+    config.mail.smtp.pass = runtimeConfig.mail?.smtp?.pass || process.env.SMTP_PASS || config.mail.smtp.pass;
     config.googleCalendar.icsUrl = runtimeConfig.googleCalendar?.icsUrl || process.env.GOOGLE_CALENDAR_ICS_URL || config.googleCalendar.icsUrl;
   }
   config.sessionSecret = process.env.SESSION_SECRET || crypto.createHash('sha256').update(config.admin.password || 'calendar').digest('hex');
@@ -259,18 +270,64 @@ async function createApp() {
       googleCalendar: {
         icsUrl: cfg.googleCalendar.icsUrl || '',
         resolvedIcsUrl: normalizeCalendarUrl(cfg.googleCalendar.icsUrl)
+      },
+      mail: {
+        from: cfg.mail.from || '',
+        recipients: {
+          admin: cfg.mail.recipients.admin || '',
+          teachers: cfg.mail.recipients.teachers || ''
+        },
+        smtp: {
+          host: cfg.mail.smtp.host || '',
+          port: cfg.mail.smtp.port || 587,
+          secure: Boolean(cfg.mail.smtp.secure),
+          user: cfg.mail.smtp.user || '',
+          hasPass: Boolean(cfg.mail.smtp.pass)
+        }
       }
     });
   });
 
   app.put('/api/admin/config', requireAdmin, async (req, res) => {
     const icsUrl = String(req.body.googleCalendar?.icsUrl || '').trim();
-    const config = await saveConfig({ googleCalendar: { icsUrl } });
+    const current = await loadConfig(false);
+    const smtpPass = String(req.body.mail?.smtp?.pass || '');
+    const config = await saveConfig({
+      googleCalendar: { icsUrl },
+      mail: {
+        from: String(req.body.mail?.from || '').trim(),
+        recipients: {
+          admin: String(req.body.mail?.recipients?.admin || '').trim(),
+          teachers: String(req.body.mail?.recipients?.teachers || '').trim()
+        },
+        smtp: {
+          host: String(req.body.mail?.smtp?.host || '').trim(),
+          port: Number(req.body.mail?.smtp?.port || 587),
+          secure: Boolean(req.body.mail?.smtp?.secure),
+          user: String(req.body.mail?.smtp?.user || '').trim(),
+          pass: smtpPass || current.mail?.smtp?.pass || ''
+        }
+      }
+    });
     res.json({
       ok: true,
       googleCalendar: {
         icsUrl: config.googleCalendar.icsUrl || '',
         resolvedIcsUrl: normalizeCalendarUrl(config.googleCalendar.icsUrl)
+      },
+      mail: {
+        from: config.mail.from || '',
+        recipients: {
+          admin: config.mail.recipients.admin || '',
+          teachers: config.mail.recipients.teachers || ''
+        },
+        smtp: {
+          host: config.mail.smtp.host || '',
+          port: config.mail.smtp.port || 587,
+          secure: Boolean(config.mail.smtp.secure),
+          user: config.mail.smtp.user || '',
+          hasPass: Boolean(config.mail.smtp.pass)
+        }
       }
     });
   });

@@ -7,6 +7,7 @@ App para publicar eventos del calendario de Google del colegio y gestionarlos de
 - Vista publica para familias en `/familias` con solo los eventos marcados como visibles.
 - Panel de administrador en `/admin` con login por contrasena.
 - Cambio del enlace de Google Calendar desde el panel de administrador.
+- Configuracion SMTP y cuenta de correo del administrador desde el panel de administrador.
 - Marcado de eventos visibles para familias; por defecto quedan solo para profesores.
 - Preparacion de correo para profesores con rango semanal o trimestral, titulo editable y destinatarios configurables.
 - Envio inmediato o programado por SMTP.

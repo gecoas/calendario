@@ -71,16 +71,44 @@ async function loadAdminConfig() {
   const config = await request('/api/admin/config');
   document.querySelector('#calendar-url').value = config.googleCalendar.icsUrl || '';
   document.querySelector('#calendar-resolved-url').value = config.googleCalendar.resolvedIcsUrl || '';
+  document.querySelector('#mail-from-address').value = config.mail.from || '';
+  document.querySelector('#mail-admin-recipient').value = config.mail.recipients.admin || '';
+  document.querySelector('#mail-teachers-recipient').value = config.mail.recipients.teachers || '';
+  document.querySelector('#smtp-host').value = config.mail.smtp.host || '';
+  document.querySelector('#smtp-port').value = config.mail.smtp.port || 587;
+  document.querySelector('#smtp-secure').value = String(Boolean(config.mail.smtp.secure));
+  document.querySelector('#smtp-user').value = config.mail.smtp.user || '';
+  document.querySelector('#smtp-pass').placeholder = config.mail.smtp.hasPass ? 'Contrasena guardada; dejar en blanco para no cambiar' : 'Sin contrasena guardada';
+  document.querySelector('#recipient option[value="admin"]').textContent = config.mail.recipients.admin ? `Cuenta administrador (${config.mail.recipients.admin})` : 'Cuenta administrador';
+  document.querySelector('#recipient option[value="teachers"]').textContent = config.mail.recipients.teachers || 'profesores@alcaste-lasfuentes.com';
 }
 
-async function saveCalendarUrl() {
-  settingsStatus.textContent = 'Guardando calendario...';
+async function saveSettings() {
+  settingsStatus.textContent = 'Guardando configuracion...';
   const config = await request('/api/admin/config', {
     method: 'PUT',
-    body: JSON.stringify({ googleCalendar: { icsUrl: document.querySelector('#calendar-url').value } })
+    body: JSON.stringify({
+      googleCalendar: { icsUrl: document.querySelector('#calendar-url').value },
+      mail: {
+        from: document.querySelector('#mail-from-address').value,
+        recipients: {
+          admin: document.querySelector('#mail-admin-recipient').value,
+          teachers: document.querySelector('#mail-teachers-recipient').value
+        },
+        smtp: {
+          host: document.querySelector('#smtp-host').value,
+          port: document.querySelector('#smtp-port').value,
+          secure: document.querySelector('#smtp-secure').value === 'true',
+          user: document.querySelector('#smtp-user').value,
+          pass: document.querySelector('#smtp-pass').value
+        }
+      }
+    })
   });
   document.querySelector('#calendar-resolved-url').value = config.googleCalendar.resolvedIcsUrl || '';
-  settingsStatus.textContent = 'Calendario guardado';
+  document.querySelector('#smtp-pass').value = '';
+  await loadAdminConfig();
+  settingsStatus.textContent = 'Configuracion guardada';
   await loadEvents();
 }
 
@@ -185,7 +213,7 @@ async function loadScheduled() {
 document.querySelector('#login-button').addEventListener('click', login);
 document.querySelector('#password').addEventListener('keydown', (event) => { if (event.key === 'Enter') login(); });
 document.querySelector('#load-events').addEventListener('click', () => loadEvents().catch((error) => eventsStatus.textContent = error.message));
-document.querySelector('#save-calendar-url').addEventListener('click', () => saveCalendarUrl().catch((error) => settingsStatus.textContent = error.message));
+document.querySelector('#save-settings').addEventListener('click', () => saveSettings().catch((error) => settingsStatus.textContent = error.message));
 document.querySelector('#admin-events').addEventListener('change', (event) => {
   if (event.target.matches('[data-event-id]')) changeVisibility(event.target).catch((error) => eventsStatus.textContent = error.message);
 });
