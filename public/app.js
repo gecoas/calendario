@@ -1,57 +1,101 @@
-const eventsEl = document.querySelector('#events');
-const fromEl = document.querySelector('#from');
-const toEl = document.querySelector('#to');
-const titleEl = document.querySelector('#school-title');
-const statusEl = document.querySelector('#status');
+const calendarEl = document.querySelector('#calendar');
+const courseTitleEl = document.querySelector('#course-title');
+const monthTitleEl = document.querySelector('#month-title');
+const previousButton = document.querySelector('#previous-month');
+const nextButton = document.querySelector('#next-month');
+let currentMonth = new Date();
+currentMonth.setDate(1);
 
 function isoDate(date) {
   return date.toISOString().slice(0, 10);
 }
 
-function setDefaultRange() {
-  const today = new Date();
-  const later = new Date();
-  later.setDate(today.getDate() + 90);
-  fromEl.value = isoDate(today);
-  toEl.value = isoDate(later);
+function localIsoDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-function formatDate(value) {
-  return new Intl.DateTimeFormat('es-ES', { weekday: 'short', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function monthGridRange(monthDate) {
+  const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const last = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+  const mondayOffset = (first.getDay() + 6) % 7;
+  const sundayOffset = 6 - ((last.getDay() + 6) % 7);
+  return { start: addDays(first, -mondayOffset), end: addDays(last, sundayOffset) };
+}
+
+function eventDates(event) {
+  const dates = [];
+  const startIso = event.start.slice(0, 10);
+  const endIso = event.end ? event.end.slice(0, 10) : startIso;
+  const start = new Date(`${startIso}T12:00:00`);
+  const end = new Date(`${endIso}T12:00:00`);
+  const allDay = event.start.endsWith('T00:00:00.000Z') && event.end && event.end.endsWith('T00:00:00.000Z');
+  const limit = allDay && endIso !== startIso ? end : addDays(start, 1);
+  for (let day = start; day < limit; day = addDays(day, 1)) dates.push(localIsoDate(day));
+  return dates;
 }
 
 async function loadConfig() {
   const response = await fetch('/api/config');
   const config = await response.json();
-  titleEl.textContent = config.schoolName || 'Calendario escolar';
+  courseTitleEl.textContent = `Calendario curso ${config.schoolYear || '2026-2027'}`;
 }
 
 async function loadEvents() {
-  statusEl.textContent = 'Cargando eventos...';
-  eventsEl.innerHTML = '';
-  const params = new URLSearchParams({ audience: 'families', from: fromEl.value, to: toEl.value });
+  const range = monthGridRange(currentMonth);
+  const params = new URLSearchParams({ audience: 'families', from: localIsoDate(range.start), to: localIsoDate(range.end) });
   const response = await fetch(`/api/events?${params}`);
   const events = await response.json();
   if (!response.ok) throw new Error(events.error || 'No se han podido cargar los eventos');
-  statusEl.textContent = `${events.length} eventos visibles para familias`;
-  eventsEl.innerHTML = events.map((event) => `
-    <article class="event">
-      <time>${formatDate(event.start)}</time>
-      <div>
-        <h3>${escapeHtml(event.title)}</h3>
-        ${event.location ? `<p>${escapeHtml(event.location)}</p>` : ''}
-        ${event.description ? `<p>${escapeHtml(event.description)}</p>` : ''}
+  renderCalendar(events, range);
+}
+
+function renderCalendar(events, range) {
+  const eventsByDate = new Map();
+  events.forEach((event) => {
+    eventDates(event).forEach((date) => {
+      if (!eventsByDate.has(date)) eventsByDate.set(date, []);
+      eventsByDate.get(date).push(event);
+    });
+  });
+  monthTitleEl.textContent = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(currentMonth);
+  const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+  const cells = weekdays.map((day) => `<div class="weekday">${day}</div>`);
+  for (let day = new Date(range.start); day <= range.end; day = addDays(day, 1)) {
+    const dateKey = localIsoDate(day);
+    const dayEvents = eventsByDate.get(dateKey) || [];
+    const outside = day.getMonth() !== currentMonth.getMonth();
+    cells.push(`
+      <div class="month-cell ${outside ? 'outside' : ''}">
+        <div class="day-number">${day.getDate()}</div>
+        <div class="day-events">
+          ${dayEvents.map((event) => `<div class="month-event" title="${escapeHtml(event.title)}">${escapeHtml(event.title)}</div>`).join('')}
+        </div>
       </div>
-      <span class="badge">Familias</span>
-    </article>
-  `).join('') || '<p>No hay eventos publicados para este rango.</p>';
+    `);
+  }
+  calendarEl.innerHTML = cells.join('');
 }
 
 function escapeHtml(value) {
   return String(value || '').replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
 }
 
-document.querySelector('#filter').addEventListener('click', () => loadEvents().catch((error) => statusEl.textContent = error.message));
-setDefaultRange();
+previousButton.addEventListener('click', () => {
+  currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
+  loadEvents().catch(() => calendarEl.innerHTML = '');
+});
+nextButton.addEventListener('click', () => {
+  currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+  loadEvents().catch(() => calendarEl.innerHTML = '');
+});
 loadConfig();
-loadEvents().catch((error) => statusEl.textContent = error.message);
+loadEvents().catch(() => calendarEl.innerHTML = '');

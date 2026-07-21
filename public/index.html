@@ -8,24 +8,14 @@
 </head>
 <body>
   <main class="shell">
-    <section class="hero">
-      <div>
-        <div class="eyebrow">URL para familias</div>
-        <h1 id="school-title">Calendario escolar</h1>
-        <p>Esta pagina muestra solo los eventos que el colegio ha marcado como visibles para las familias.</p>
+    <h1 id="course-title" class="course-title">Calendario curso 2026-2027</h1>
+    <section class="card month-card">
+      <div class="month-controls">
+        <button id="previous-month" class="secondary" aria-label="Mes anterior">‹</button>
+        <div id="month-title" class="month-title"></div>
+        <button id="next-month" class="secondary" aria-label="Mes siguiente">›</button>
       </div>
-      <div class="card">
-        <div class="toolbar">
-          <label>Desde <input id="from" type="date"></label>
-          <label>Hasta <input id="to" type="date"></label>
-          <button id="filter">Ver eventos</button>
-        </div>
-      </div>
-    </section>
-    <section class="card">
-      <h2>Eventos publicados</h2>
-      <div id="status" class="status"></div>
-      <div id="events" class="events"></div>
+      <div id="calendar" class="month-calendar"></div>
     </section>
   </main>
   <script src="/app.js"></script>

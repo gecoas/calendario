@@ -30,6 +30,9 @@ async function writeJson(file, data) {
 
 async function saveConfig(updates) {
   const config = await loadConfig(false);
+  if (Object.prototype.hasOwnProperty.call(updates, 'schoolYear')) {
+    config.schoolYear = updates.schoolYear;
+  }
   config.googleCalendar = { ...(config.googleCalendar || {}), ...(updates.googleCalendar || {}) };
   if (updates.mail) {
     config.mail = {
@@ -261,12 +264,13 @@ async function createApp() {
 
   app.get('/api/config', async (_req, res) => {
     const cfg = await loadConfig();
-    res.json({ schoolName: cfg.schoolName, publicBaseUrl: cfg.publicBaseUrl });
+    res.json({ schoolName: cfg.schoolName, schoolYear: cfg.schoolYear || '2026-2027', publicBaseUrl: cfg.publicBaseUrl });
   });
 
   app.get('/api/admin/config', requireAdmin, async (_req, res) => {
     const cfg = await loadConfig();
     res.json({
+      schoolYear: cfg.schoolYear || '2026-2027',
       googleCalendar: {
         icsUrl: cfg.googleCalendar.icsUrl || '',
         resolvedIcsUrl: normalizeCalendarUrl(cfg.googleCalendar.icsUrl)
@@ -293,6 +297,7 @@ async function createApp() {
     const current = await loadConfig(false);
     const smtpPass = String(req.body.mail?.smtp?.pass || '');
     const config = await saveConfig({
+      schoolYear: String(req.body.schoolYear || '2026-2027').trim(),
       googleCalendar: { icsUrl },
       mail: {
         from: String(req.body.mail?.from || '').trim(),
@@ -311,6 +316,7 @@ async function createApp() {
     });
     res.json({
       ok: true,
+      schoolYear: config.schoolYear || '2026-2027',
       googleCalendar: {
         icsUrl: config.googleCalendar.icsUrl || '',
         resolvedIcsUrl: normalizeCalendarUrl(config.googleCalendar.icsUrl)

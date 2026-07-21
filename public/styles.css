@@ -46,9 +46,27 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .preview { min-height: 180px; background: white; border: 1px solid var(--line); border-radius: 18px; padding: 18px; overflow: auto; }
 .status { min-height: 1.4rem; color: var(--brand-2); font-weight: 800; }
 .copy-url { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+.course-title { margin: 8px 0 24px; text-align: center; }
+.month-card { padding: 0; overflow: hidden; }
+.month-controls { display: grid; grid-template-columns: 64px 1fr 64px; gap: 1px; align-items: center; border-bottom: 1px solid var(--line); background: var(--line); }
+.month-controls button { height: 64px; border-radius: 0; font-size: 2rem; }
+.month-title { background: rgba(255, 250, 240, .94); height: 64px; display: grid; place-items: center; font-size: 1.35rem; font-weight: 900; text-transform: capitalize; }
+.month-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--line); gap: 1px; }
+.weekday { background: #efe4d2; color: var(--brand); font-weight: 900; text-align: center; padding: 10px 4px; }
+.month-cell { min-height: 132px; background: rgba(255,255,255,.78); padding: 8px; display: grid; grid-template-rows: auto 1fr; gap: 6px; }
+.month-cell.outside { background: rgba(245, 241, 232, .64); color: #9a9388; }
+.day-number { font-weight: 900; color: var(--brand); }
+.day-events { display: grid; align-content: start; gap: 4px; }
+.month-event { background: var(--brand); color: white; border-radius: 8px; padding: 4px 6px; font-size: .78rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 820px) {
   .hero, .toolbar, .grid, .grid.two, .event { grid-template-columns: 1fr; }
   .event { align-items: start; }
   h1 { letter-spacing: -.035em; }
+  .shell { width: min(100% - 12px, 1180px); padding-top: 16px; }
+  .month-controls { grid-template-columns: 48px 1fr 48px; }
+  .month-controls button, .month-title { height: 52px; }
+  .month-title { font-size: 1rem; }
+  .month-cell { min-height: 96px; padding: 5px; }
+  .month-event { font-size: .68rem; padding: 3px 5px; }
 }

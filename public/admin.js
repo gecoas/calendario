@@ -69,6 +69,7 @@ async function initializeAdmin() {
 
 async function loadAdminConfig() {
   const config = await request('/api/admin/config');
+  document.querySelector('#school-year').value = config.schoolYear || '2026-2027';
   document.querySelector('#calendar-url').value = config.googleCalendar.icsUrl || '';
   document.querySelector('#calendar-resolved-url').value = config.googleCalendar.resolvedIcsUrl || '';
   document.querySelector('#mail-from-address').value = config.mail.from || '';
@@ -89,6 +90,7 @@ async function saveSettings() {
     method: 'PUT',
     body: JSON.stringify({
       googleCalendar: { icsUrl: document.querySelector('#calendar-url').value },
+      schoolYear: document.querySelector('#school-year').value,
       mail: {
         from: document.querySelector('#mail-from-address').value,
         recipients: {
