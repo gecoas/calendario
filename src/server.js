@@ -43,8 +43,9 @@ function normalizeCalendarUrl(url) {
   try {
     const parsed = new URL(value);
     const cid = parsed.searchParams.get('cid');
-    if (!cid) return value;
-    const calendarId = Buffer.from(cid, 'base64').toString('utf8');
+    const src = parsed.searchParams.get('src');
+    const calendarId = src || (cid ? Buffer.from(cid, 'base64').toString('utf8') : '');
+    if (!calendarId) return value;
     return `https://calendar.google.com/calendar/ical/${encodeURIComponent(calendarId)}/public/basic.ics`;
   } catch (_error) {
     return value;

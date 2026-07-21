@@ -30,7 +30,7 @@ No subas secretos reales al repo. Para produccion usa variables de entorno como 
 
 ## Google Calendar
 
-La app lee el calendario mediante una URL de Google Calendar. Acepta tanto una URL iCal/ICS como una URL de Google Calendar con parametro `cid`, por ejemplo `https://calendar.google.com/calendar/u/0?cid=...`.
+La app lee el calendario mediante una URL de Google Calendar. Acepta una URL iCal/ICS, una URL con parametro `cid` o una URL de insercion con parametro `src`, por ejemplo `https://calendar.google.com/calendar/embed?src=...`.
 
 El administrador puede cambiar este enlace desde `/admin`, seccion `Configuracion`.
 
