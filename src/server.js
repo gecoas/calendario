@@ -225,6 +225,7 @@ async function updateScheduleStatus(id, status, error) {
 async function createApp() {
   const config = await loadConfig();
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '1mb' }));
   app.use(session({
     secret: config.sessionSecret,
