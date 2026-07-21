@@ -29,6 +29,13 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
 
+function formatEventDate(event) {
+  if (event.allDay) {
+    return new Intl.DateTimeFormat('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit' }).format(new Date(event.start));
+  }
+  return formatDate(event.start);
+}
+
 function escapeHtml(value) {
   return String(value || '').replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
 }
@@ -123,7 +130,7 @@ async function loadEvents() {
   eventsStatus.textContent = `${events.length} eventos encontrados`;
   document.querySelector('#admin-events').innerHTML = events.map((event) => `
     <article class="event">
-      <time>${formatDate(event.start)}</time>
+      <time>${formatEventDate(event)}</time>
       <div>
         <h3>${escapeHtml(event.title)}</h3>
         ${event.location ? `<p>${escapeHtml(event.location)}</p>` : ''}

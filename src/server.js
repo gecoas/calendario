@@ -113,6 +113,7 @@ function eventId(event) {
 
 function normalizeEvent(raw, visibleMap) {
   const id = eventId(raw);
+  const allDay = raw.datetype === 'date' || raw.start?.dateOnly === true;
   return {
     id,
     title: raw.summary || 'Sin titulo',
@@ -120,6 +121,7 @@ function normalizeEvent(raw, visibleMap) {
     location: raw.location || '',
     start: raw.start ? raw.start.toISOString() : null,
     end: raw.end ? raw.end.toISOString() : null,
+    allDay,
     visibleToFamilies: Boolean(visibleMap[id])
   };
 }
@@ -163,11 +165,22 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function formatEventDate(event) {
+  if (event.allDay) {
+    return new Intl.DateTimeFormat('es-ES', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit'
+    }).format(new Date(event.start));
+  }
+  return formatDate(event.start);
+}
+
 function buildMailHtml({ title, events, audience }) {
   const intro = audience === 'families' ? 'Eventos visibles para las familias.' : 'Eventos previstos para el profesorado.';
   const items = events.map((event) => `
     <li>
-      <strong>${escapeHtml(formatDate(event.start))} - ${escapeHtml(event.title)}</strong>
+      <strong>${escapeHtml(formatEventDate(event))} - ${escapeHtml(event.title)}</strong>
       ${event.location ? `<br><span>${escapeHtml(event.location)}</span>` : ''}
       ${event.description ? `<br><small>${escapeHtml(event.description)}</small>` : ''}
     </li>`).join('');
@@ -207,7 +220,7 @@ async function createFamilyPdf(events, title) {
     doc.moveDown();
     if (!events.length) doc.fontSize(12).text('No hay eventos visibles para familias en el rango seleccionado.');
     events.forEach((event) => {
-      doc.fontSize(13).text(`${formatDate(event.start)} - ${event.title}`, { continued: false });
+      doc.fontSize(13).text(`${formatEventDate(event)} - ${event.title}`, { continued: false });
       if (event.location) doc.fontSize(10).text(event.location);
       if (event.description) doc.fontSize(10).text(event.description.replace(/\s+/g, ' '));
       doc.moveDown(0.7);

@@ -37,10 +37,14 @@ function eventDates(event) {
   const endIso = event.end ? event.end.slice(0, 10) : startIso;
   const start = new Date(`${startIso}T12:00:00`);
   const end = new Date(`${endIso}T12:00:00`);
-  const allDay = event.start.endsWith('T00:00:00.000Z') && event.end && event.end.endsWith('T00:00:00.000Z');
-  const limit = allDay && endIso !== startIso ? end : addDays(start, 1);
+  const limit = event.allDay && endIso !== startIso ? end : addDays(start, 1);
   for (let day = start; day < limit; day = addDays(day, 1)) dates.push(localIsoDate(day));
   return dates;
+}
+
+function eventTime(event) {
+  if (event.allDay) return '';
+  return new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(new Date(event.start));
 }
 
 async function loadConfig() {
@@ -77,7 +81,7 @@ function renderCalendar(events, range) {
       <div class="month-cell ${outside ? 'outside' : ''}">
         <div class="day-number">${day.getDate()}</div>
         <div class="day-events">
-          ${dayEvents.map((event) => `<div class="month-event" title="${escapeHtml(event.title)}">${escapeHtml(event.title)}</div>`).join('')}
+          ${dayEvents.map((event) => `<div class="month-event" title="${escapeHtml(event.title)}">${eventTime(event) ? `${eventTime(event)} ` : ''}${escapeHtml(event.title)}</div>`).join('')}
         </div>
       </div>
     `);
