@@ -68,7 +68,8 @@ function mergeConfig(base, runtime) {
 }
 
 async function loadConfig(applyEnv = true) {
-  const config = mergeConfig(await readJson(configPath, {}), await readJson(runtimeConfigPath, {}));
+  const runtimeConfig = await readJson(runtimeConfigPath, {});
+  const config = mergeConfig(await readJson(configPath, {}), runtimeConfig);
   config.admin = config.admin || {};
   config.mail = config.mail || {};
   config.mail.smtp = config.mail.smtp || {};
@@ -81,7 +82,7 @@ async function loadConfig(applyEnv = true) {
     config.mail.smtp.secure = String(process.env.SMTP_SECURE || config.mail.smtp.secure) === 'true';
     config.mail.smtp.user = process.env.SMTP_USER || config.mail.smtp.user;
     config.mail.smtp.pass = process.env.SMTP_PASS || config.mail.smtp.pass;
-    config.googleCalendar.icsUrl = process.env.GOOGLE_CALENDAR_ICS_URL || config.googleCalendar.icsUrl;
+    config.googleCalendar.icsUrl = runtimeConfig.googleCalendar?.icsUrl || process.env.GOOGLE_CALENDAR_ICS_URL || config.googleCalendar.icsUrl;
   }
   config.sessionSecret = process.env.SESSION_SECRET || crypto.createHash('sha256').update(config.admin.password || 'calendar').digest('hex');
   return config;
