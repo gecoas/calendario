@@ -9,6 +9,6 @@ services:
       NODE_ENV: production
       PORT: 3000
     ports:
-      - "8098:3000"
+      - "8099:3000"
     volumes:
       - ./data:/app/data
