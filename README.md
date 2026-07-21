@@ -51,6 +51,7 @@ Luego abre:
 
 Los datos generados por la app se guardan en `data/`:
 
+- `app.config.json`: configuracion editable desde el panel de administrador.
 - `visibility.json`: eventos visibles para familias.
 - `scheduled-mails.json`: envios programados y estado.
 

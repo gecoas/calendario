@@ -10,6 +10,7 @@ const path = require('path');
 const rootDir = path.join(__dirname, '..');
 const configPath = path.join(rootDir, 'config', 'app.config.json');
 const dataDir = path.join(rootDir, 'data');
+const runtimeConfigPath = path.join(dataDir, 'app.config.json');
 const visibilityPath = path.join(dataDir, 'visibility.json');
 const scheduledPath = path.join(dataDir, 'scheduled-mails.json');
 
@@ -28,9 +29,10 @@ async function writeJson(file, data) {
 }
 
 async function saveConfig(updates) {
-  const config = await readJson(configPath, {});
+  const config = await loadConfig(false);
   config.googleCalendar = { ...(config.googleCalendar || {}), ...(updates.googleCalendar || {}) };
-  await writeJson(configPath, config);
+  delete config.sessionSecret;
+  await writeJson(runtimeConfigPath, config);
   return config;
 }
 
@@ -49,20 +51,37 @@ function normalizeCalendarUrl(url) {
   }
 }
 
-async function loadConfig() {
-  const config = await readJson(configPath, {});
+function mergeConfig(base, runtime) {
+  return {
+    ...base,
+    ...runtime,
+    admin: { ...(base.admin || {}), ...(runtime.admin || {}) },
+    googleCalendar: { ...(base.googleCalendar || {}), ...(runtime.googleCalendar || {}) },
+    mail: {
+      ...(base.mail || {}),
+      ...(runtime.mail || {}),
+      smtp: { ...(base.mail?.smtp || {}), ...(runtime.mail?.smtp || {}) },
+      recipients: { ...(base.mail?.recipients || {}), ...(runtime.mail?.recipients || {}) }
+    }
+  };
+}
+
+async function loadConfig(applyEnv = true) {
+  const config = mergeConfig(await readJson(configPath, {}), await readJson(runtimeConfigPath, {}));
   config.admin = config.admin || {};
   config.mail = config.mail || {};
   config.mail.smtp = config.mail.smtp || {};
   config.mail.recipients = config.mail.recipients || {};
   config.googleCalendar = config.googleCalendar || {};
-  config.admin.password = process.env.ADMIN_PASSWORD || config.admin.password;
-  config.mail.smtp.host = process.env.SMTP_HOST || config.mail.smtp.host;
-  config.mail.smtp.port = Number(process.env.SMTP_PORT || config.mail.smtp.port || 587);
-  config.mail.smtp.secure = String(process.env.SMTP_SECURE || config.mail.smtp.secure) === 'true';
-  config.mail.smtp.user = process.env.SMTP_USER || config.mail.smtp.user;
-  config.mail.smtp.pass = process.env.SMTP_PASS || config.mail.smtp.pass;
-  config.googleCalendar.icsUrl = process.env.GOOGLE_CALENDAR_ICS_URL || config.googleCalendar.icsUrl;
+  if (applyEnv) {
+    config.admin.password = process.env.ADMIN_PASSWORD || config.admin.password;
+    config.mail.smtp.host = process.env.SMTP_HOST || config.mail.smtp.host;
+    config.mail.smtp.port = Number(process.env.SMTP_PORT || config.mail.smtp.port || 587);
+    config.mail.smtp.secure = String(process.env.SMTP_SECURE || config.mail.smtp.secure) === 'true';
+    config.mail.smtp.user = process.env.SMTP_USER || config.mail.smtp.user;
+    config.mail.smtp.pass = process.env.SMTP_PASS || config.mail.smtp.pass;
+    config.googleCalendar.icsUrl = process.env.GOOGLE_CALENDAR_ICS_URL || config.googleCalendar.icsUrl;
+  }
   config.sessionSecret = process.env.SESSION_SECRET || crypto.createHash('sha256').update(config.admin.password || 'calendar').digest('hex');
   return config;
 }
