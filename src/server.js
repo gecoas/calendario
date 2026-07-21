@@ -114,7 +114,15 @@ async function fetchEvents() {
   const visibleMap = await readJson(visibilityPath, {});
   const calendarUrl = normalizeCalendarUrl(config.googleCalendar.icsUrl);
   if (!calendarUrl) return [];
-  const parsed = await ical.async.fromURL(calendarUrl);
+  const response = await fetch(calendarUrl);
+  if (!response.ok) {
+    throw new Error(`Google Calendar no entrega un iCal valido (${response.status}). Usa la direccion publica o secreta en formato iCal del calendario.`);
+  }
+  const calendarText = await response.text();
+  if (!calendarText.includes('BEGIN:VCALENDAR')) {
+    throw new Error('La URL configurada no devuelve un calendario iCal valido. Usa la direccion publica o secreta en formato iCal del calendario.');
+  }
+  const parsed = await ical.async.parseICS(calendarText);
   return Object.values(parsed)
     .filter((item) => item.type === 'VEVENT' && item.start)
     .map((item) => normalizeEvent(item, visibleMap))
