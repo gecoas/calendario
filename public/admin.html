@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administracion del calendario</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <section id="login" class="login card">
+    <div class="eyebrow">Administrador</div>
+    <h1>Acceso</h1>
+    <p>Introduce la contrasena configurada para gestionar eventos, correos y PDF.</p>
+    <label>Contrasena <input id="password" type="password" autocomplete="current-password"></label>
+    <button id="login-button">Entrar</button>
+    <p id="login-status" class="status"></p>
+  </section>
+
+  <main id="admin" class="shell" hidden>
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Panel de administrador</div>
+        <h1>Calendario escolar</h1>
+        <p>Marca eventos para familias, prepara comunicaciones a profesores y genera el PDF trimestral para familias.</p>
+      </div>
+      <div class="card">
+        <h2>URL de familias</h2>
+        <div class="copy-url">
+          <input id="family-url" readonly>
+          <button id="copy-url" class="secondary">Copiar</button>
+        </div>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="Secciones de administracion">
+      <button class="tab" data-tab="settings-panel">Configuracion</button>
+      <button class="tab active" data-tab="events-panel">Visibilidad</button>
+      <button class="tab" data-tab="teachers-panel">Mail profesores</button>
+      <button class="tab" data-tab="families-panel">PDF familias</button>
+      <button class="tab" data-tab="scheduled-panel">Programados</button>
+    </nav>
+
+    <section id="settings-panel" class="panel card">
+      <h2>Calendario de Google</h2>
+      <p>Pega aqui la URL de Google Calendar. Puede ser una URL con <code>cid</code> o una URL iCal/ICS.</p>
+      <label>Enlace del calendario <input id="calendar-url" type="url" placeholder="https://calendar.google.com/calendar/..."></label>
+      <label>URL iCal resuelta <input id="calendar-resolved-url" readonly></label>
+      <button id="save-calendar-url">Guardar calendario</button>
+      <p id="settings-status" class="status"></p>
+    </section>
+
+    <section id="events-panel" class="panel active card">
+      <h2>Eventos del calendario</h2>
+      <div class="toolbar">
+        <label>Desde <input id="events-from" type="date"></label>
+        <label>Hasta <input id="events-to" type="date"></label>
+        <button id="load-events">Cargar eventos</button>
+      </div>
+      <p id="events-status" class="status"></p>
+      <div id="admin-events" class="events"></div>
+    </section>
+
+    <section id="teachers-panel" class="panel card">
+      <h2>Enviar eventos a profesores</h2>
+      <div class="grid">
+        <label>Desde <input id="mail-from" type="date"></label>
+        <label>Hasta <input id="mail-to" type="date"></label>
+        <label>Destinatarios
+          <select id="recipient">
+            <option value="admin">Cuenta administrador</option>
+            <option value="teachers">profesores@alcaste-lasfuentes.com</option>
+          </select>
+        </label>
+        <button id="quarter-teachers" class="secondary">Usar trimestre</button>
+      </div>
+      <div class="grid two">
+        <label>Titulo del mail <input id="mail-title" value="Eventos de la semana"></label>
+        <label>Programar envio <input id="send-at" type="datetime-local"></label>
+      </div>
+      <div class="toolbar">
+        <button id="preview-mail" class="secondary">Previsualizar</button>
+        <button id="send-mail">Enviar ahora</button>
+        <button id="schedule-mail" class="warn">Programar envio</button>
+      </div>
+      <p id="mail-status" class="status"></p>
+      <div id="mail-preview" class="preview"></div>
+    </section>
+
+    <section id="families-panel" class="panel card">
+      <h2>PDF trimestral para familias</h2>
+      <p>Incluye solo eventos marcados como visibles para familias. El PDF se descarga para adjuntarlo en la app de comunicaciones.</p>
+      <div class="grid">
+        <label>Desde <input id="pdf-from" type="date"></label>
+        <label>Hasta <input id="pdf-to" type="date"></label>
+        <label>Titulo <input id="pdf-title" value="Eventos del trimestre para familias"></label>
+        <button id="quarter-families" class="secondary">Usar trimestre</button>
+      </div>
+      <button id="download-pdf">Crear PDF</button>
+      <p id="pdf-status" class="status"></p>
+    </section>
+
+    <section id="scheduled-panel" class="panel card">
+      <h2>Envios programados</h2>
+      <button id="load-scheduled" class="secondary">Actualizar lista</button>
+      <div id="scheduled" class="events"></div>
+    </section>
+  </main>
+  <script src="/admin.js"></script>
+</body>
+</html>

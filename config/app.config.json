@@ -1,0 +1,25 @@
+{
+  "schoolName": "Colegio Alcaste-Las Fuentes",
+  "publicBaseUrl": "https://calendario.example.com",
+  "googleCalendar": {
+    "icsUrl": "https://calendar.google.com/calendar/u/0?cid=Y18yYmFmM2M4NzIzMThmNTMwODhjNDhiZDM4ZjUwNGVhNTE2ZjM0ODQ5YzU4NmYzMWRkYmUwMzNiMTExYjRjMjMyQGdyb3VwLmNhbGVuZGFyLmdvb2dsZS5jb20",
+    "timezone": "Europe/Madrid"
+  },
+  "admin": {
+    "password": "cambia-esta-contrasena"
+  },
+  "mail": {
+    "from": "Calendario Colegio <no-reply@example.com>",
+    "smtp": {
+      "host": "",
+      "port": 587,
+      "secure": false,
+      "user": "",
+      "pass": ""
+    },
+    "recipients": {
+      "admin": "admin@example.com",
+      "teachers": "profesores@alcaste-lasfuentes.com"
+    }
+  }
+}
