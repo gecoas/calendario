@@ -3,11 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Calendario familias</title>
+  <title>Calendario profesores</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
-  <main class="shell">
+<body data-audience="teachers">
+  <section id="teacher-login" class="login card">
+    <img class="site-logo" src="/logo.svg" alt="Logo colegio">
+    <h1>Calendario profesores</h1>
+    <label>Correo del colegio <input id="teacher-email" type="email" placeholder="nombre@alcaste-lasfuentes.com" autocomplete="email"></label>
+    <button id="teacher-login-button">Entrar</button>
+    <p id="teacher-login-status" class="status"></p>
+  </section>
+  <main id="teacher-calendar" class="shell" hidden>
     <header class="public-header">
       <img class="site-logo" src="/logo.svg" alt="Logo colegio">
       <h1 id="course-title" class="course-title">Calendario curso 2026-2027</h1>

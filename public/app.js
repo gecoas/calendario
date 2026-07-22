@@ -3,6 +3,10 @@ const courseTitleEl = document.querySelector('#course-title');
 const monthTitleEl = document.querySelector('#month-title');
 const previousButton = document.querySelector('#previous-month');
 const nextButton = document.querySelector('#next-month');
+const audience = document.body.dataset.audience || 'families';
+const teacherLoginEl = document.querySelector('#teacher-login');
+const teacherCalendarEl = document.querySelector('#teacher-calendar');
+const teacherStatusEl = document.querySelector('#teacher-login-status');
 let currentMonth = new Date();
 currentMonth.setDate(1);
 
@@ -55,7 +59,7 @@ async function loadConfig() {
 
 async function loadEvents() {
   const range = monthGridRange(currentMonth);
-  const params = new URLSearchParams({ audience: 'families', from: localIsoDate(range.start), to: localIsoDate(range.end) });
+  const params = new URLSearchParams({ audience, from: localIsoDate(range.start), to: localIsoDate(range.end) });
   const response = await fetch(`/api/events?${params}`);
   const events = await response.json();
   if (!response.ok) throw new Error(events.error || 'No se han podido cargar los eventos');
@@ -101,5 +105,30 @@ nextButton.addEventListener('click', () => {
   currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
   loadEvents().catch(() => calendarEl.innerHTML = '');
 });
-loadConfig();
-loadEvents().catch(() => calendarEl.innerHTML = '');
+
+async function teacherLogin() {
+  teacherStatusEl.textContent = 'Comprobando correo...';
+  const response = await fetch('/api/teacher/login', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: document.querySelector('#teacher-email').value })
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    teacherStatusEl.textContent = body.error || 'No se ha podido entrar';
+    return;
+  }
+  teacherLoginEl.hidden = true;
+  teacherCalendarEl.hidden = false;
+  await loadConfig();
+  await loadEvents();
+}
+
+if (audience === 'teachers') {
+  document.querySelector('#teacher-login-button').addEventListener('click', () => teacherLogin().catch((error) => teacherStatusEl.textContent = error.message));
+  document.querySelector('#teacher-email').addEventListener('keydown', (event) => { if (event.key === 'Enter') teacherLogin(); });
+} else {
+  loadConfig();
+  loadEvents().catch(() => calendarEl.innerHTML = '');
+}

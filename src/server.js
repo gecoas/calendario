@@ -13,6 +13,7 @@ const dataDir = path.join(rootDir, 'data');
 const runtimeConfigPath = path.join(dataDir, 'app.config.json');
 const visibilityPath = path.join(dataDir, 'visibility.json');
 const scheduledPath = path.join(dataDir, 'scheduled-mails.json');
+const madridTimeZone = 'Europe/Madrid';
 
 async function readJson(file, fallback) {
   try {
@@ -107,6 +108,12 @@ function requireAdmin(req, res, next) {
   return res.status(401).json({ error: 'No autorizado' });
 }
 
+function requireCalendarAccess(req, res, next) {
+  if (req.query.audience === 'families') return next();
+  if (req.session && (req.session.admin || req.session.teacher)) return next();
+  return res.status(401).json({ error: 'No autorizado' });
+}
+
 function eventId(event) {
   return crypto.createHash('sha1').update(`${event.uid || ''}:${event.start?.toISOString() || ''}:${event.summary || ''}`).digest('hex');
 }
@@ -157,6 +164,7 @@ function filterByRange(events, from, to) {
 
 function formatDate(value) {
   return new Intl.DateTimeFormat('es-ES', {
+    timeZone: madridTimeZone,
     weekday: 'short',
     day: '2-digit',
     month: '2-digit',
@@ -168,6 +176,7 @@ function formatDate(value) {
 function formatEventDate(event) {
   if (event.allDay) {
     return new Intl.DateTimeFormat('es-ES', {
+      timeZone: madridTimeZone,
       weekday: 'short',
       day: '2-digit',
       month: '2-digit'
@@ -176,15 +185,61 @@ function formatEventDate(event) {
   return formatDate(event.start);
 }
 
+function capitalize(value) {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+function formatMailDate(event) {
+  const date = new Intl.DateTimeFormat('es-ES', {
+    timeZone: madridTimeZone,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long'
+  }).format(new Date(event.start));
+  if (event.allDay) return capitalize(date);
+  const time = new Intl.DateTimeFormat('es-ES', {
+    timeZone: madridTimeZone,
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(event.start));
+  return `${capitalize(date)}, ${time}`;
+}
+
+function eventDateKeys(event) {
+  const dates = [];
+  const startIso = event.start.slice(0, 10);
+  const endIso = event.end ? event.end.slice(0, 10) : startIso;
+  const start = new Date(`${startIso}T12:00:00`);
+  const end = new Date(`${endIso}T12:00:00`);
+  const limit = event.allDay && endIso !== startIso ? end : addDays(start, 1);
+  for (let day = start; day < limit; day = addDays(day, 1)) dates.push(localIsoDate(day));
+  return dates;
+}
+
+function localIsoDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function monthGridRange(monthDate) {
+  const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const last = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+  return { start: addDays(first, -((first.getDay() + 6) % 7)), end: addDays(last, 6 - ((last.getDay() + 6) % 7)) };
+}
+
 function buildMailHtml({ title, events, audience }) {
   const intro = audience === 'families' ? 'Eventos visibles para las familias.' : 'Eventos previstos para el profesorado.';
   const items = events.map((event) => `
-    <li>
-      <strong>${escapeHtml(formatEventDate(event))} - ${escapeHtml(event.title)}</strong>
-      ${event.location ? `<br><span>${escapeHtml(event.location)}</span>` : ''}
-      ${event.description ? `<br><small>${escapeHtml(event.description)}</small>` : ''}
-    </li>`).join('');
-  return `<!doctype html><html><body><h1>${escapeHtml(title)}</h1><p>${intro}</p><ul>${items || '<li>No hay eventos en el rango seleccionado.</li>'}</ul></body></html>`;
+    <tr>
+      <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:#a61946;font-weight:700;white-space:nowrap;vertical-align:top;">${escapeHtml(formatMailDate(event))}</td>
+      <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:#24141a;font-weight:700;vertical-align:top;">${escapeHtml(event.title)}${event.location ? `<div style="font-weight:400;color:#655761;margin-top:4px;">${escapeHtml(event.location)}</div>` : ''}</td>
+    </tr>`).join('');
+  return `<!doctype html><html><body style="margin:0;background:#f7f2ee;font-family:Arial,Helvetica,sans-serif;color:#24141a;"><div style="max-width:760px;margin:0 auto;padding:28px;"><div style="background:#fff;border:1px solid #eadde2;border-radius:18px;overflow:hidden;"><div style="padding:24px 28px;background:#a61946;color:#fff;"><h1 style="margin:0;font-size:26px;">${escapeHtml(title)}</h1><p style="margin:8px 0 0;color:#f6d7e1;">${intro}</p></div><table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">${items || '<tr><td style="padding:20px;">No hay eventos en el rango seleccionado.</td></tr>'}</table></div></div></body></html>`;
 }
 
 function escapeHtml(value) {
@@ -210,21 +265,74 @@ async function sendMail({ title, html, recipientKey }) {
   await transporter.sendMail({ from: config.mail.from, to, subject: title, html });
 }
 
-async function createFamilyPdf(events, title) {
+function trimesterTitle(from) {
+  const month = Number(String(from || '').slice(5, 7));
+  if (month >= 9 && month <= 12) return 'Calendario del primer trimestre';
+  if (month >= 1 && month <= 3) return 'Calendario del segundo trimestre';
+  if (month >= 4 && month <= 6) return 'Calendario del tercer trimestre';
+  return 'Calendario del trimestre';
+}
+
+function drawLogo(doc, x, y, size) {
+  doc.save();
+  doc.rect(x, y, size, size).fill('#ffffff');
+  doc.path(`M${x} ${y + size} V${y + size * 0.65} C${x} ${y + size * 0.25} ${x + size * 0.25} ${y} ${x + size * 0.65} ${y} H${x + size} V${y + size * 0.33} H${x + size * 0.67} C${x + size * 0.48} ${y + size * 0.33} ${x + size * 0.33} ${y + size * 0.48} ${x + size * 0.33} ${y + size * 0.67} V${y + size} Z`).fill('#a61946');
+  doc.polygon([x + size * 0.60, y + size * 0.47], [x + size * 0.72, y + size * 0.47], [x + size * 0.66, y + size * 0.9]).fill('#f4b400');
+  for (let i = 0; i < 6; i += 1) {
+    const angle = -55 + i * 22;
+    const rad = angle * Math.PI / 180;
+    doc.moveTo(x + size * 0.66, y + size * 0.47).lineTo(x + size * (0.66 + Math.cos(rad) * 0.34), y + size * (0.47 + Math.sin(rad) * 0.34)).lineWidth(7).stroke('#f4b400');
+  }
+  doc.restore();
+}
+
+function drawPdfMonth(doc, monthDate, events) {
+  const left = 42;
+  const top = 112;
+  const cellWidth = 73;
+  const cellHeight = 58;
+  const range = monthGridRange(monthDate);
+  const eventsByDate = new Map();
+  events.forEach((event) => eventDateKeys(event).forEach((date) => {
+    if (!eventsByDate.has(date)) eventsByDate.set(date, []);
+    eventsByDate.get(date).push(event);
+  }));
+  doc.fontSize(15).fillColor('#a61946').text(capitalize(new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(monthDate)), left, 82);
+  ['L', 'M', 'X', 'J', 'V', 'S', 'D'].forEach((day, index) => {
+    doc.rect(left + index * cellWidth, top - 22, cellWidth, 22).fillAndStroke('#f4e7ec', '#eadde2');
+    doc.fillColor('#a61946').fontSize(9).text(day, left + index * cellWidth, top - 17, { width: cellWidth, align: 'center' });
+  });
+  let index = 0;
+  for (let day = new Date(range.start); day <= range.end; day = addDays(day, 1)) {
+    const x = left + (index % 7) * cellWidth;
+    const y = top + Math.floor(index / 7) * cellHeight;
+    const outside = day.getMonth() !== monthDate.getMonth();
+    doc.rect(x, y, cellWidth, cellHeight).fillAndStroke(outside ? '#f7f2ee' : '#ffffff', '#eadde2');
+    doc.fillColor(outside ? '#a79aa1' : '#a61946').fontSize(8).text(String(day.getDate()), x + 4, y + 4);
+    const dayEvents = eventsByDate.get(localIsoDate(day)) || [];
+    dayEvents.slice(0, 3).forEach((event, eventIndex) => {
+      const label = event.allDay ? event.title : `${formatMailDate(event).split(', ').pop()} ${event.title}`;
+      doc.fillColor('#24141a').fontSize(6.5).text(label, x + 4, y + 15 + eventIndex * 13, { width: cellWidth - 8, height: 12, ellipsis: true });
+    });
+    index += 1;
+  }
+}
+
+async function createFamilyPdf(events, title, from, to) {
   return new Promise((resolve) => {
     const doc = new PDFDocument({ margin: 48, size: 'A4' });
     const chunks = [];
     doc.on('data', (chunk) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.fontSize(20).text(title || 'Eventos del trimestre', { align: 'center' });
-    doc.moveDown();
-    if (!events.length) doc.fontSize(12).text('No hay eventos visibles para familias en el rango seleccionado.');
-    events.forEach((event) => {
-      doc.fontSize(13).text(`${formatEventDate(event)} - ${event.title}`, { continued: false });
-      if (event.location) doc.fontSize(10).text(event.location);
-      if (event.description) doc.fontSize(10).text(event.description.replace(/\s+/g, ' '));
-      doc.moveDown(0.7);
-    });
+    const heading = title || trimesterTitle(from);
+    const start = new Date(`${from}T12:00:00`);
+    const end = new Date(`${to}T12:00:00`);
+    for (let month = new Date(start.getFullYear(), start.getMonth(), 1); month <= end; month = new Date(month.getFullYear(), month.getMonth() + 1, 1)) {
+      if (month.getTime() !== new Date(start.getFullYear(), start.getMonth(), 1).getTime()) doc.addPage();
+      drawLogo(doc, 42, 30, 42);
+      doc.fillColor('#24141a').fontSize(20).text(heading, 96, 38, { width: 440 });
+      drawPdfMonth(doc, month, events);
+    }
     doc.end();
   });
 }
@@ -273,6 +381,7 @@ async function createApp() {
   app.use(express.static(path.join(rootDir, 'public')));
 
   app.get('/familias', (_req, res) => res.sendFile(path.join(rootDir, 'public', 'index.html')));
+  app.get('/profesores', (_req, res) => res.sendFile(path.join(rootDir, 'public', 'profesores.html')));
   app.get('/admin', (_req, res) => res.sendFile(path.join(rootDir, 'public', 'admin.html')));
 
   app.get('/api/config', async (_req, res) => {
@@ -362,7 +471,16 @@ async function createApp() {
 
   app.post('/api/logout', requireAdmin, (req, res) => req.session.destroy(() => res.json({ ok: true })));
 
-  app.get('/api/events', async (req, res, next) => {
+  app.post('/api/teacher/login', (req, res) => {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    if (!email.endsWith('@alcaste-lasfuentes.com')) {
+      return res.status(401).json({ error: 'Usa un correo del colegio @alcaste-lasfuentes.com' });
+    }
+    req.session.teacher = { email };
+    return res.json({ ok: true });
+  });
+
+  app.get('/api/events', requireCalendarAccess, async (req, res, next) => {
     try {
       const events = filterByRange(await fetchEvents(), req.query.from, req.query.to);
       res.json(req.query.audience === 'families' ? events.filter((event) => event.visibleToFamilies) : events);
@@ -421,7 +539,7 @@ async function createApp() {
   app.post('/api/families/pdf', requireAdmin, async (req, res, next) => {
     try {
       const events = filterByRange(await fetchEvents(), req.body.from, req.body.to).filter((event) => event.visibleToFamilies);
-      const pdf = await createFamilyPdf(events, req.body.title || 'Eventos del trimestre');
+      const pdf = await createFamilyPdf(events, trimesterTitle(req.body.from), req.body.from, req.body.to);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'attachment; filename="eventos-familias.pdf"');
       res.send(pdf);

@@ -180,7 +180,7 @@ async function scheduleMail() {
     return;
   }
   mailStatus.textContent = 'Programando envio...';
-  await request('/api/mail/schedule', { method: 'POST', body: JSON.stringify({ ...mailPayload(), sendAt }) });
+  await request('/api/mail/schedule', { method: 'POST', body: JSON.stringify({ ...mailPayload(), sendAt: new Date(sendAt).toISOString() }) });
   mailStatus.textContent = 'Envio programado';
   await loadScheduled();
 }
