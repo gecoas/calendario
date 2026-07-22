@@ -273,19 +273,6 @@ function trimesterTitle(from) {
   return 'Calendario del trimestre';
 }
 
-function drawLogo(doc, x, y, size) {
-  doc.save();
-  doc.rect(x, y, size, size).fill('#ffffff');
-  doc.path(`M${x} ${y + size} V${y + size * 0.65} C${x} ${y + size * 0.25} ${x + size * 0.25} ${y} ${x + size * 0.65} ${y} H${x + size} V${y + size * 0.33} H${x + size * 0.67} C${x + size * 0.48} ${y + size * 0.33} ${x + size * 0.33} ${y + size * 0.48} ${x + size * 0.33} ${y + size * 0.67} V${y + size} Z`).fill('#a61946');
-  doc.polygon([x + size * 0.60, y + size * 0.47], [x + size * 0.72, y + size * 0.47], [x + size * 0.66, y + size * 0.9]).fill('#f4b400');
-  for (let i = 0; i < 6; i += 1) {
-    const angle = -55 + i * 22;
-    const rad = angle * Math.PI / 180;
-    doc.moveTo(x + size * 0.66, y + size * 0.47).lineTo(x + size * (0.66 + Math.cos(rad) * 0.34), y + size * (0.47 + Math.sin(rad) * 0.34)).lineWidth(7).stroke('#f4b400');
-  }
-  doc.restore();
-}
-
 function drawPdfMonth(doc, monthDate, events) {
   const left = 42;
   const top = 112;
@@ -329,7 +316,7 @@ async function createFamilyPdf(events, title, from, to) {
     const end = new Date(`${to}T12:00:00`);
     for (let month = new Date(start.getFullYear(), start.getMonth(), 1); month <= end; month = new Date(month.getFullYear(), month.getMonth() + 1, 1)) {
       if (month.getTime() !== new Date(start.getFullYear(), start.getMonth(), 1).getTime()) doc.addPage();
-      drawLogo(doc, 42, 30, 38);
+      doc.image(path.join(rootDir, 'public', 'logo.png'), 42, 30, { width: 38, height: 38 });
       doc.fillColor('#24141a').fontSize(20).text(heading, 96, 38, { width: 440 });
       drawPdfMonth(doc, month, events);
     }
