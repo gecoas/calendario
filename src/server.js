@@ -329,7 +329,7 @@ async function createFamilyPdf(events, title, from, to) {
     const end = new Date(`${to}T12:00:00`);
     for (let month = new Date(start.getFullYear(), start.getMonth(), 1); month <= end; month = new Date(month.getFullYear(), month.getMonth() + 1, 1)) {
       if (month.getTime() !== new Date(start.getFullYear(), start.getMonth(), 1).getTime()) doc.addPage();
-      drawLogo(doc, 42, 30, 42);
+      drawLogo(doc, 42, 30, 38);
       doc.fillColor('#24141a').fontSize(20).text(heading, 96, 38, { width: 440 });
       drawPdfMonth(doc, month, events);
     }
