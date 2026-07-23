@@ -265,26 +265,36 @@ async function sendMail({ title, html, recipientKey }) {
   await transporter.sendMail({ from: config.mail.from, to, subject: title, html });
 }
 
-function trimesterTitle(from) {
+function formatSchoolYearForTitle(schoolYear) {
+  return String(schoolYear || '2026-2027').replace('-', '/');
+}
+
+function trimesterName(from) {
   const month = Number(String(from || '').slice(5, 7));
-  if (month >= 9 && month <= 12) return 'Calendario del primer trimestre';
-  if (month >= 1 && month <= 3) return 'Calendario del segundo trimestre';
-  if (month >= 4 && month <= 6) return 'Calendario del tercer trimestre';
-  return 'Calendario del trimestre';
+  if (month >= 9 && month <= 12) return 'primer';
+  if (month >= 1 && month <= 3) return 'segundo';
+  if (month >= 4 && month <= 6) return 'tercer';
+  return '';
+}
+
+function trimesterTitle(from, schoolYear) {
+  const trimester = trimesterName(from);
+  const prefix = trimester ? `Calendario ${trimester} trimestre` : 'Calendario trimestre';
+  return `${prefix} curso ${formatSchoolYearForTitle(schoolYear)}`;
 }
 
 function drawPdfMonth(doc, monthDate, events) {
-  const left = 42;
-  const top = 112;
-  const cellWidth = 73;
-  const cellHeight = 58;
+  const left = 36;
+  const top = 118;
+  const cellWidth = 110;
+  const cellHeight = 72;
   const range = monthGridRange(monthDate);
   const eventsByDate = new Map();
   events.forEach((event) => eventDateKeys(event).forEach((date) => {
     if (!eventsByDate.has(date)) eventsByDate.set(date, []);
     eventsByDate.get(date).push(event);
   }));
-  doc.fontSize(15).fillColor('#a61946').text(capitalize(new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(monthDate)), left, 82);
+  doc.fontSize(15).fillColor('#a61946').text(capitalize(new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(monthDate)), left, 88);
   ['L', 'M', 'X', 'J', 'V', 'S', 'D'].forEach((day, index) => {
     doc.rect(left + index * cellWidth, top - 22, cellWidth, 22).fillAndStroke('#f4e7ec', '#eadde2');
     doc.fillColor('#a61946').fontSize(9).text(day, left + index * cellWidth, top - 17, { width: cellWidth, align: 'center' });
@@ -299,7 +309,7 @@ function drawPdfMonth(doc, monthDate, events) {
     const dayEvents = eventsByDate.get(localIsoDate(day)) || [];
     dayEvents.slice(0, 3).forEach((event, eventIndex) => {
       const label = event.allDay ? event.title : `${formatMailDate(event).split(', ').pop()} ${event.title}`;
-      doc.fillColor('#24141a').fontSize(6.5).text(label, x + 4, y + 15 + eventIndex * 13, { width: cellWidth - 8, height: 12, ellipsis: true });
+      doc.fillColor('#24141a').fontSize(7).text(label, x + 4, y + 15 + eventIndex * 14, { width: cellWidth - 8, height: 13, ellipsis: true });
     });
     index += 1;
   }
@@ -307,7 +317,7 @@ function drawPdfMonth(doc, monthDate, events) {
 
 async function createFamilyPdf(events, title, from, to) {
   return new Promise((resolve) => {
-    const doc = new PDFDocument({ margin: 48, size: 'A4' });
+    const doc = new PDFDocument({ margin: 36, size: 'A4', layout: 'landscape' });
     const chunks = [];
     doc.on('data', (chunk) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -317,7 +327,7 @@ async function createFamilyPdf(events, title, from, to) {
     for (let month = new Date(start.getFullYear(), start.getMonth(), 1); month <= end; month = new Date(month.getFullYear(), month.getMonth() + 1, 1)) {
       if (month.getTime() !== new Date(start.getFullYear(), start.getMonth(), 1).getTime()) doc.addPage();
       doc.image(path.join(rootDir, 'public', 'logo.png'), 42, 30, { width: 38, height: 38 });
-      doc.fillColor('#24141a').fontSize(20).text(heading, 96, 38, { width: 440 });
+      doc.fillColor('#24141a').fontSize(20).text(heading, 96, 38, { width: 700 });
       drawPdfMonth(doc, month, events);
     }
     doc.end();
@@ -526,7 +536,8 @@ async function createApp() {
   app.post('/api/families/pdf', requireAdmin, async (req, res, next) => {
     try {
       const events = filterByRange(await fetchEvents(), req.body.from, req.body.to).filter((event) => event.visibleToFamilies);
-      const pdf = await createFamilyPdf(events, trimesterTitle(req.body.from), req.body.from, req.body.to);
+      const cfg = await loadConfig();
+      const pdf = await createFamilyPdf(events, trimesterTitle(req.body.from, cfg.schoolYear), req.body.from, req.body.to);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'attachment; filename="eventos-familias.pdf"');
       res.send(pdf);
