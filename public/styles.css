@@ -53,6 +53,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .month-controls { display: grid; grid-template-columns: 64px 1fr 64px; gap: 1px; align-items: center; border-bottom: 1px solid var(--line); background: var(--line); }
 .month-controls button { height: 64px; border-radius: 0; font-size: 2rem; }
 .month-title { background: rgba(255, 250, 251, .94); height: 64px; display: grid; place-items: center; font-size: 1.35rem; font-weight: 900; text-transform: capitalize; color: var(--brand); }
+.month-actions { display: flex; justify-content: flex-end; padding: 12px; border-bottom: 1px solid var(--line); background: rgba(255, 250, 251, .72); }
+.month-actions button { width: auto; }
 .month-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--line); gap: 1px; }
 .weekday { background: #f4e7ec; color: var(--brand); font-weight: 900; text-align: center; padding: 10px 4px; }
 .month-cell { min-height: 132px; background: rgba(255,255,255,.78); padding: 8px; display: grid; grid-template-rows: auto 1fr; gap: 6px; }

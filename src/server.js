@@ -308,6 +308,12 @@ function trimesterTitle(from, schoolYear) {
   return `${prefix} curso ${formatSchoolYearForTitle(schoolYear)}`;
 }
 
+function monthTitle(month, schoolYear) {
+  const date = new Date(`${month || ''}T12:00:00`);
+  const label = Number.isNaN(date.getTime()) ? 'Mes' : capitalize(new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(date));
+  return `Calendario ${label} curso ${formatSchoolYearForTitle(schoolYear)}`;
+}
+
 function drawPdfMonth(doc, monthDate, events) {
   const left = 36;
   const top = 118;
@@ -565,6 +571,20 @@ async function createApp() {
       const pdf = await createFamilyPdf(events, trimesterTitle(req.body.from, cfg.schoolYear), req.body.from, req.body.to);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'attachment; filename="eventos-familias.pdf"');
+      res.send(pdf);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/calendar/pdf', requireCalendarAccess, async (req, res, next) => {
+    try {
+      const events = filterByRange(await fetchEvents(), req.query.from, req.query.to);
+      const filtered = req.query.audience === 'families' ? events.filter((event) => event.visibleToFamilies) : events;
+      const cfg = await loadConfig();
+      const pdf = await createFamilyPdf(filtered, monthTitle(req.query.month, cfg.schoolYear), req.query.from, req.query.to);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="calendario-mes.pdf"');
       res.send(pdf);
     } catch (error) {
       next(error);

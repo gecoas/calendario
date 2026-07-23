@@ -3,6 +3,7 @@ const courseTitleEl = document.querySelector('#course-title');
 const monthTitleEl = document.querySelector('#month-title');
 const previousButton = document.querySelector('#previous-month');
 const nextButton = document.querySelector('#next-month');
+const downloadPdfButton = document.querySelector('#download-month-pdf');
 const audience = document.body.dataset.audience || 'families';
 const teacherLoginEl = document.querySelector('#teacher-login');
 const teacherCalendarEl = document.querySelector('#teacher-calendar');
@@ -74,7 +75,7 @@ function renderCalendar(events, range) {
       eventsByDate.get(date).push(event);
     });
   });
-  monthTitleEl.textContent = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(currentMonth);
+  monthTitleEl.textContent = new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(currentMonth);
   const weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
   const cells = weekdays.map((day) => `<div class="weekday">${day}</div>`);
   for (let day = new Date(range.start); day <= range.end; day = addDays(day, 1)) {
@@ -105,6 +106,26 @@ nextButton.addEventListener('click', () => {
   currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
   loadEvents().catch(() => calendarEl.innerHTML = '');
 });
+
+async function downloadMonthPdf() {
+  const first = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+  const last = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+  const params = new URLSearchParams({ audience, from: localIsoDate(first), to: localIsoDate(last), month: localIsoDate(currentMonth) });
+  const response = await fetch(`/api/calendar/pdf?${params}`, { credentials: 'same-origin' });
+  if (!response.ok) {
+    const body = await response.json();
+    throw new Error(body.error || 'No se ha podido descargar el PDF');
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `calendario-${localIsoDate(currentMonth).slice(0, 7)}.pdf`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+downloadPdfButton.addEventListener('click', () => downloadMonthPdf().catch(() => {}));
 
 async function teacherLogin() {
   teacherStatusEl.textContent = 'Comprobando correo...';
