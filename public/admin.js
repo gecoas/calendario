@@ -5,6 +5,7 @@ const eventsStatus = document.querySelector('#events-status');
 const mailStatus = document.querySelector('#mail-status');
 const pdfStatus = document.querySelector('#pdf-status');
 const settingsStatus = document.querySelector('#settings-status');
+const noticesStatus = document.querySelector('#notices-status');
 
 function isoDate(date) {
   return date.toISOString().slice(0, 10);
@@ -73,6 +74,7 @@ async function initializeAdmin() {
   const publicUrl = `${config.publicBaseUrl || window.location.origin}/familias`;
   document.querySelector('#family-url').value = publicUrl;
   await loadAdminConfig();
+  await loadNotices();
   await loadEvents();
 }
 
@@ -151,12 +153,52 @@ async function changeVisibility(input) {
   await loadEvents();
 }
 
+async function loadNotices() {
+  const notices = await request('/api/notices');
+  document.querySelector('#notices-list').innerHTML = notices.map((notice) => `
+    <article class="event notice-item">
+      <time>${new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(notice.createdAt))}</time>
+      <div>
+        <h3>${escapeHtml(notice.title)}</h3>
+        <p>${escapeHtml(notice.body)}</p>
+      </div>
+      <button class="secondary" data-delete-notice="${notice.id}">Borrar</button>
+    </article>
+  `).join('') || '<p>No hay avisos guardados.</p>';
+  document.querySelector('#mail-notices').innerHTML = notices.map((notice) => `
+    <label class="notice-option">
+      <input type="checkbox" value="${notice.id}">
+      <span><strong>${escapeHtml(notice.title)}</strong><small>${escapeHtml(notice.body)}</small></span>
+    </label>
+  `).join('') || '<p>No hay avisos disponibles.</p>';
+}
+
+async function saveNotice() {
+  noticesStatus.textContent = 'Guardando aviso...';
+  await request('/api/notices', {
+    method: 'POST',
+    body: JSON.stringify({ title: document.querySelector('#notice-title').value, body: document.querySelector('#notice-body').value })
+  });
+  document.querySelector('#notice-title').value = '';
+  document.querySelector('#notice-body').value = '';
+  noticesStatus.textContent = 'Aviso guardado';
+  await loadNotices();
+}
+
+async function deleteNotice(id) {
+  noticesStatus.textContent = 'Borrando aviso...';
+  await request(`/api/notices/${id}`, { method: 'DELETE' });
+  noticesStatus.textContent = 'Aviso borrado';
+  await loadNotices();
+}
+
 function mailPayload() {
   return {
     from: document.querySelector('#mail-from').value,
     to: document.querySelector('#mail-to').value,
     title: document.querySelector('#mail-title').value,
-    recipientKey: document.querySelector('#recipient').value
+    recipientKey: document.querySelector('#recipient').value,
+    noticeIds: [...document.querySelectorAll('#mail-notices input:checked')].map((input) => input.value)
   };
 }
 
@@ -164,7 +206,7 @@ async function previewMail() {
   mailStatus.textContent = 'Generando previsualizacion...';
   const data = await request('/api/mail/preview', { method: 'POST', body: JSON.stringify({ ...mailPayload(), audience: 'teachers' }) });
   document.querySelector('#mail-preview').innerHTML = data.html;
-  mailStatus.textContent = `${data.events.length} eventos incluidos`;
+  mailStatus.textContent = `${data.events.length} eventos y ${data.notices.length} avisos incluidos`;
 }
 
 async function sendMail() {
@@ -226,8 +268,13 @@ document.querySelector('#login-button').addEventListener('click', login);
 document.querySelector('#password').addEventListener('keydown', (event) => { if (event.key === 'Enter') login(); });
 document.querySelector('#load-events').addEventListener('click', () => loadEvents().catch((error) => eventsStatus.textContent = error.message));
 document.querySelector('#save-settings').addEventListener('click', () => saveSettings().catch((error) => settingsStatus.textContent = error.message));
+document.querySelector('#save-notice').addEventListener('click', () => saveNotice().catch((error) => noticesStatus.textContent = error.message));
 document.querySelector('#admin-events').addEventListener('change', (event) => {
   if (event.target.matches('[data-event-id]')) changeVisibility(event.target).catch((error) => eventsStatus.textContent = error.message);
+});
+document.querySelector('#notices-list').addEventListener('click', (event) => {
+  const id = event.target.dataset.deleteNotice;
+  if (id) deleteNotice(id).catch((error) => noticesStatus.textContent = error.message);
 });
 document.querySelector('#preview-mail').addEventListener('click', () => previewMail().catch((error) => mailStatus.textContent = error.message));
 document.querySelector('#send-mail').addEventListener('click', () => sendMail().catch((error) => mailStatus.textContent = error.message));

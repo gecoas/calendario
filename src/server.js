@@ -13,6 +13,7 @@ const dataDir = path.join(rootDir, 'data');
 const runtimeConfigPath = path.join(dataDir, 'app.config.json');
 const visibilityPath = path.join(dataDir, 'visibility.json');
 const scheduledPath = path.join(dataDir, 'scheduled-mails.json');
+const noticesPath = path.join(dataDir, 'notices.json');
 const madridTimeZone = 'Europe/Madrid';
 
 async function readJson(file, fallback) {
@@ -223,6 +224,21 @@ function formatMailTime(event) {
   }).format(new Date(event.start));
 }
 
+function normalizeNotice(input) {
+  return {
+    id: input.id || crypto.randomUUID(),
+    title: String(input.title || '').trim(),
+    body: String(input.body || '').trim(),
+    createdAt: input.createdAt || new Date().toISOString()
+  };
+}
+
+async function selectedNotices(ids) {
+  const wanted = new Set(Array.isArray(ids) ? ids.map(String) : []);
+  if (!wanted.size) return [];
+  return (await readJson(noticesPath, [])).filter((notice) => wanted.has(notice.id));
+}
+
 function eventDateKeys(event) {
   const dates = [];
   const startIso = event.start.slice(0, 10);
@@ -250,8 +266,13 @@ function monthGridRange(monthDate) {
   return { start: addDays(first, -((first.getDay() + 6) % 7)), end: addDays(last, 6 - ((last.getDay() + 6) % 7)) };
 }
 
-function buildMailHtml({ title, events, audience }) {
+function buildMailHtml({ title, events, audience, notices = [] }) {
   const intro = audience === 'families' ? 'Eventos visibles para las familias.' : '';
+  const noticeItems = notices.map((notice) => `
+    <div style="margin:0 0 12px;padding:14px 16px;border:1px solid #eadde2;border-radius:14px;background:#fff8e0;">
+      <div style="color:#a61946;font-weight:800;margin-bottom:6px;">${escapeHtml(notice.title)}</div>
+      <div style="color:#24141a;line-height:1.5;white-space:pre-line;">${escapeHtml(notice.body)}</div>
+    </div>`).join('');
   let previousDay = '';
   const items = events.map((event) => {
     const day = formatMailDay(event);
@@ -264,7 +285,7 @@ function buildMailHtml({ title, events, audience }) {
         <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:#24141a;font-weight:700;vertical-align:top;">${time ? `<span style="color:#a61946;margin-right:8px;">${escapeHtml(time)}</span>` : ''}${escapeHtml(event.title)}${event.location ? `<div style="font-weight:400;color:#655761;margin-top:4px;">${escapeHtml(event.location)}</div>` : ''}</td>
       </tr>`;
   }).join('');
-  return `<!doctype html><html><body style="margin:0;background:#f7f2ee;font-family:Arial,Helvetica,sans-serif;color:#24141a;"><div style="max-width:760px;margin:0 auto;padding:28px;"><div style="background:#fff;border:1px solid #eadde2;border-radius:18px;overflow:hidden;"><div style="padding:24px 28px;background:#a61946;color:#fff;"><h1 style="margin:0;font-size:26px;">${escapeHtml(title)}</h1>${intro ? `<p style="margin:8px 0 0;color:#f6d7e1;">${intro}</p>` : ''}</div><table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">${items || '<tr><td style="padding:20px;">No hay eventos en el rango seleccionado.</td></tr>'}</table></div></div></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f7f2ee;font-family:Arial,Helvetica,sans-serif;color:#24141a;"><div style="max-width:760px;margin:0 auto;padding:28px;"><div style="background:#fff;border:1px solid #eadde2;border-radius:18px;overflow:hidden;"><div style="padding:24px 28px;background:#a61946;color:#fff;"><h1 style="margin:0;font-size:26px;">${escapeHtml(title)}</h1>${intro ? `<p style="margin:8px 0 0;color:#f6d7e1;">${intro}</p>` : ''}</div>${noticeItems ? `<div style="padding:20px 20px 8px;">${noticeItems}</div>` : ''}<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">${items || '<tr><td style="padding:20px;">No hay eventos en el rango seleccionado.</td></tr>'}</table></div></div></body></html>`;
 }
 
 function escapeHtml(value) {
@@ -395,7 +416,8 @@ function planScheduledMail(item) {
   setTimeout(async () => {
     try {
       const events = filterByRange(await fetchEvents(), item.from, item.to);
-      const html = buildMailHtml({ title: item.title, events, audience: item.audience });
+      const notices = await selectedNotices(item.noticeIds);
+      const html = buildMailHtml({ title: item.title, events, audience: item.audience, notices });
       await sendMail({ title: item.title, html, recipientKey: item.recipientKey });
       await updateScheduleStatus(item.id, 'sent');
     } catch (error) {
@@ -540,11 +562,31 @@ async function createApp() {
     res.json({ ok: true });
   });
 
+  app.get('/api/notices', requireAdmin, async (_req, res) => {
+    res.json(await readJson(noticesPath, []));
+  });
+
+  app.post('/api/notices', requireAdmin, async (req, res) => {
+    const notice = normalizeNotice(req.body);
+    if (!notice.title || !notice.body) return res.status(400).json({ error: 'El aviso necesita titulo y texto' });
+    const notices = await readJson(noticesPath, []);
+    notices.unshift(notice);
+    await writeJson(noticesPath, notices);
+    res.json(notice);
+  });
+
+  app.delete('/api/notices/:id', requireAdmin, async (req, res) => {
+    const notices = await readJson(noticesPath, []);
+    await writeJson(noticesPath, notices.filter((notice) => notice.id !== req.params.id));
+    res.json({ ok: true });
+  });
+
   app.post('/api/mail/preview', requireAdmin, async (req, res, next) => {
     try {
       const events = filterByRange(await fetchEvents(), req.body.from, req.body.to);
       const filtered = req.body.audience === 'families' ? events.filter((event) => event.visibleToFamilies) : events;
-      res.json({ html: buildMailHtml({ title: req.body.title || 'Eventos', events: filtered, audience: req.body.audience }), events: filtered });
+      const notices = await selectedNotices(req.body.noticeIds);
+      res.json({ html: buildMailHtml({ title: req.body.title || 'Eventos', events: filtered, audience: req.body.audience, notices }), events: filtered, notices });
     } catch (error) {
       next(error);
     }
@@ -553,7 +595,8 @@ async function createApp() {
   app.post('/api/mail/send', requireAdmin, async (req, res, next) => {
     try {
       const events = filterByRange(await fetchEvents(), req.body.from, req.body.to);
-      const html = buildMailHtml({ title: req.body.title || 'Eventos', events, audience: 'teachers' });
+      const notices = await selectedNotices(req.body.noticeIds);
+      const html = buildMailHtml({ title: req.body.title || 'Eventos', events, audience: 'teachers', notices });
       await sendMail({ title: req.body.title || 'Eventos', html, recipientKey: req.body.recipientKey || 'admin' });
       res.json({ ok: true });
     } catch (error) {
@@ -569,6 +612,7 @@ async function createApp() {
         to: req.body.to,
         recipientKey: req.body.recipientKey || 'admin',
         audience: 'teachers',
+        noticeIds: Array.isArray(req.body.noticeIds) ? req.body.noticeIds.map(String) : [],
         sendAt: req.body.sendAt
       });
       res.json(item);

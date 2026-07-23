@@ -35,6 +35,7 @@
     <nav class="tabs" aria-label="Secciones de administracion">
       <button class="tab" data-tab="settings-panel">Configuracion</button>
       <button class="tab active" data-tab="events-panel">Visibilidad</button>
+      <button class="tab" data-tab="notices-panel">Avisos</button>
       <button class="tab" data-tab="teachers-panel">Mail profesores</button>
       <button class="tab" data-tab="families-panel">PDF familias</button>
       <button class="tab" data-tab="scheduled-panel">Programados</button>
@@ -81,6 +82,18 @@
       <div id="admin-events" class="events"></div>
     </section>
 
+    <section id="notices-panel" class="panel card">
+      <h2>Avisos para profesorado</h2>
+      <p>Crea avisos reutilizables. En la pestana Mail profesores podras seleccionar cuales incluir antes de los eventos.</p>
+      <div class="grid two">
+        <label>Titulo <input id="notice-title" placeholder="Ej. Recordatorio importante"></label>
+        <label>Texto <textarea id="notice-body" rows="4" placeholder="Escribe el aviso para el profesorado"></textarea></label>
+      </div>
+      <button id="save-notice">Anadir aviso</button>
+      <p id="notices-status" class="status"></p>
+      <div id="notices-list" class="events"></div>
+    </section>
+
     <section id="teachers-panel" class="panel card">
       <h2>Enviar eventos a profesores</h2>
       <div class="grid">
@@ -97,6 +110,10 @@
       <div class="grid two">
         <label>Titulo del mail <input id="mail-title" value="Eventos de la semana"></label>
         <label>Programar envio <input id="send-at" type="datetime-local"></label>
+      </div>
+      <div>
+        <h3>Avisos incluidos</h3>
+        <div id="mail-notices" class="notice-picker"></div>
       </div>
       <div class="toolbar">
         <button id="preview-mail" class="secondary">Previsualizar</button>
