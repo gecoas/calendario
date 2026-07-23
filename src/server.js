@@ -271,6 +271,14 @@ function escapeHtml(value) {
   return String(value || '').replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
 }
 
+function cleanPdfText(value) {
+  return String(value || '')
+    .replace(/\p{Extended_Pictographic}/gu, '')
+    .replace(/[\uFE0E\uFE0F\u200D]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function transporterFromConfig(config) {
   if (!config.mail.smtp.host) return null;
   return nodemailer.createTransport({
@@ -340,7 +348,8 @@ function drawPdfMonth(doc, monthDate, events) {
     const dayEvents = eventsByDate.get(localIsoDate(day)) || [];
     let eventY = y + 15;
     dayEvents.forEach((event) => {
-      const label = event.allDay ? event.title : `${formatMailDate(event).split(', ').pop()} ${event.title}`;
+      const label = cleanPdfText(event.allDay ? event.title : `${formatMailDate(event).split(', ').pop()} ${event.title}`);
+      if (!label) return;
       const textHeight = doc.heightOfString(label, { width: cellWidth - 8, lineGap: 0 });
       if (eventY + textHeight > y + cellHeight - 3) return;
       doc.fillColor('#24141a').fontSize(6.5).text(label, x + 4, eventY, { width: cellWidth - 8, lineGap: 0 });
