@@ -274,6 +274,8 @@ function escapeHtml(value) {
 function cleanPdfText(value) {
   return String(value || '')
     .replace(/\p{Extended_Pictographic}/gu, '')
+    .replace(/[\u{1F000}-\u{1FAFF}]/gu, '')
+    .replace(/[\uD800-\uDFFF]/g, '')
     .replace(/[\uFE0E\uFE0F\u200D]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
