@@ -316,16 +316,16 @@ function monthTitle(month, schoolYear) {
 
 function drawPdfMonth(doc, monthDate, events) {
   const left = 36;
-  const top = 118;
+  const top = 132;
   const cellWidth = 110;
-  const cellHeight = 72;
+  const cellHeight = 64;
   const range = monthGridRange(monthDate);
   const eventsByDate = new Map();
   events.forEach((event) => eventDateKeys(event).forEach((date) => {
     if (!eventsByDate.has(date)) eventsByDate.set(date, []);
     eventsByDate.get(date).push(event);
   }));
-  doc.fontSize(15).fillColor('#a61946').text(capitalize(new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(monthDate)), left, 88);
+  doc.fontSize(15).fillColor('#a61946').text(capitalize(new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(monthDate)), left, 92);
   ['L', 'M', 'X', 'J', 'V', 'S', 'D'].forEach((day, index) => {
     doc.rect(left + index * cellWidth, top - 22, cellWidth, 22).fillAndStroke('#f4e7ec', '#eadde2');
     doc.fillColor('#a61946').fontSize(9).text(day, left + index * cellWidth, top - 17, { width: cellWidth, align: 'center' });
@@ -338,9 +338,13 @@ function drawPdfMonth(doc, monthDate, events) {
     doc.rect(x, y, cellWidth, cellHeight).fillAndStroke(outside ? '#f7f2ee' : '#ffffff', '#eadde2');
     doc.fillColor(outside ? '#a79aa1' : '#a61946').fontSize(8).text(String(day.getDate()), x + 4, y + 4);
     const dayEvents = eventsByDate.get(localIsoDate(day)) || [];
-    dayEvents.slice(0, 3).forEach((event, eventIndex) => {
+    let eventY = y + 15;
+    dayEvents.forEach((event) => {
       const label = event.allDay ? event.title : `${formatMailDate(event).split(', ').pop()} ${event.title}`;
-      doc.fillColor('#24141a').fontSize(7).text(label, x + 4, y + 15 + eventIndex * 14, { width: cellWidth - 8, height: 13, ellipsis: true });
+      const textHeight = doc.heightOfString(label, { width: cellWidth - 8, lineGap: 0 });
+      if (eventY + textHeight > y + cellHeight - 3) return;
+      doc.fillColor('#24141a').fontSize(6.5).text(label, x + 4, eventY, { width: cellWidth - 8, lineGap: 0 });
+      eventY += textHeight + 2;
     });
     index += 1;
   }
