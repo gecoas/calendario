@@ -233,13 +233,13 @@ function monthGridRange(monthDate) {
 }
 
 function buildMailHtml({ title, events, audience }) {
-  const intro = audience === 'families' ? 'Eventos visibles para las familias.' : 'Eventos previstos para el profesorado.';
+  const intro = audience === 'families' ? 'Eventos visibles para las familias.' : '';
   const items = events.map((event) => `
     <tr>
       <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:#a61946;font-weight:700;white-space:nowrap;vertical-align:top;">${escapeHtml(formatMailDate(event))}</td>
       <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:#24141a;font-weight:700;vertical-align:top;">${escapeHtml(event.title)}${event.location ? `<div style="font-weight:400;color:#655761;margin-top:4px;">${escapeHtml(event.location)}</div>` : ''}</td>
     </tr>`).join('');
-  return `<!doctype html><html><body style="margin:0;background:#f7f2ee;font-family:Arial,Helvetica,sans-serif;color:#24141a;"><div style="max-width:760px;margin:0 auto;padding:28px;"><div style="background:#fff;border:1px solid #eadde2;border-radius:18px;overflow:hidden;"><div style="padding:24px 28px;background:#a61946;color:#fff;"><h1 style="margin:0;font-size:26px;">${escapeHtml(title)}</h1><p style="margin:8px 0 0;color:#f6d7e1;">${intro}</p></div><table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">${items || '<tr><td style="padding:20px;">No hay eventos en el rango seleccionado.</td></tr>'}</table></div></div></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f7f2ee;font-family:Arial,Helvetica,sans-serif;color:#24141a;"><div style="max-width:760px;margin:0 auto;padding:28px;"><div style="background:#fff;border:1px solid #eadde2;border-radius:18px;overflow:hidden;"><div style="padding:24px 28px;background:#a61946;color:#fff;"><h1 style="margin:0;font-size:26px;">${escapeHtml(title)}</h1>${intro ? `<p style="margin:8px 0 0;color:#f6d7e1;">${intro}</p>` : ''}</div><table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">${items || '<tr><td style="padding:20px;">No hay eventos en el rango seleccionado.</td></tr>'}</table></div></div></body></html>`;
 }
 
 function escapeHtml(value) {
