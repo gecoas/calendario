@@ -107,25 +107,14 @@ nextButton.addEventListener('click', () => {
   loadEvents().catch(() => calendarEl.innerHTML = '');
 });
 
-async function downloadMonthPdf() {
+function downloadMonthPdf() {
   const first = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
   const last = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
   const params = new URLSearchParams({ audience, from: localIsoDate(first), to: localIsoDate(last), month: localIsoDate(currentMonth) });
-  const response = await fetch(`/api/calendar/pdf?${params}`, { credentials: 'same-origin' });
-  if (!response.ok) {
-    const body = await response.json();
-    throw new Error(body.error || 'No se ha podido descargar el PDF');
-  }
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `calendario-${localIsoDate(currentMonth).slice(0, 7)}.pdf`;
-  link.click();
-  URL.revokeObjectURL(url);
+  window.location.href = `/api/calendar/pdf?${params}`;
 }
 
-downloadPdfButton.addEventListener('click', () => downloadMonthPdf().catch(() => {}));
+downloadPdfButton.addEventListener('click', downloadMonthPdf);
 
 async function teacherLogin() {
   teacherStatusEl.textContent = 'Comprobando correo...';
