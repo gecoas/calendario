@@ -51,6 +51,18 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .notice-option input { width: auto; margin-top: 4px; }
 .notice-option span { display: grid; gap: 4px; }
 .notice-option small { color: var(--muted); font-weight: 500; white-space: pre-line; }
+.notice-body { color: var(--muted); line-height: 1.55; }
+.modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 18px; background: rgba(36, 20, 26, .42); }
+.modal[hidden] { display: none; }
+.modal-card { width: min(680px, 100%); display: grid; gap: 16px; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.modal-header h2 { margin: 0; }
+.modal-header button { width: auto; }
+.editor-toolbar { display: flex; gap: 8px; }
+.editor-toolbar button { width: auto; }
+.rich-editor { min-height: 160px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; color: var(--ink); line-height: 1.5; outline: none; }
+.rich-editor:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(166, 25, 70, .12); }
+.rich-editor:empty::before { content: attr(data-placeholder); color: var(--muted); }
 .copy-url { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
 .public-header { display: grid; grid-template-columns: 50px 1fr 50px; gap: 16px; align-items: center; margin-bottom: 24px; }
 .site-logo { width: 50px; height: 50px; object-fit: contain; }

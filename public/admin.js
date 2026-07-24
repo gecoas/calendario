@@ -41,6 +41,16 @@ function escapeHtml(value) {
   return String(value || '').replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
 }
 
+function htmlToText(value) {
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = value || '';
+  return wrapper.textContent || '';
+}
+
+function todayIso() {
+  return isoDate(new Date());
+}
+
 async function request(path, options = {}) {
   const response = await fetch(path, {
     credentials: 'same-origin',
@@ -157,10 +167,10 @@ async function loadNotices() {
   const notices = await request('/api/notices');
   document.querySelector('#notices-list').innerHTML = notices.map((notice) => `
     <article class="event notice-item">
-      <time>${new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(notice.createdAt))}</time>
+      <time>${new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${notice.date}T12:00:00`))}</time>
       <div>
         <h3>${escapeHtml(notice.title)}</h3>
-        <p>${escapeHtml(notice.body)}</p>
+        <div class="notice-body">${notice.body}</div>
       </div>
       <button class="secondary" data-delete-notice="${notice.id}">Borrar</button>
     </article>
@@ -168,19 +178,39 @@ async function loadNotices() {
   document.querySelector('#mail-notices').innerHTML = notices.map((notice) => `
     <label class="notice-option">
       <input type="checkbox" value="${notice.id}">
-      <span><strong>${escapeHtml(notice.title)}</strong><small>${escapeHtml(notice.body)}</small></span>
+      <span><strong>${escapeHtml(notice.title)} · ${escapeHtml(notice.date)}</strong><small>${escapeHtml(htmlToText(notice.body))}</small></span>
     </label>
   `).join('') || '<p>No hay avisos disponibles.</p>';
+}
+
+function openNoticeModal() {
+  document.querySelector('#notice-date').value = todayIso();
+  document.querySelector('#notice-title').value = '';
+  document.querySelector('#notice-body').innerHTML = '';
+  document.querySelector('#notice-modal').hidden = false;
+  document.querySelector('#notice-title').focus();
+}
+
+function closeNoticeModal() {
+  document.querySelector('#notice-modal').hidden = true;
+}
+
+function formatNoticeText(command) {
+  document.querySelector('#notice-body').focus();
+  document.execCommand(command, false, null);
 }
 
 async function saveNotice() {
   noticesStatus.textContent = 'Guardando aviso...';
   await request('/api/notices', {
     method: 'POST',
-    body: JSON.stringify({ title: document.querySelector('#notice-title').value, body: document.querySelector('#notice-body').value })
+    body: JSON.stringify({
+      date: document.querySelector('#notice-date').value,
+      title: document.querySelector('#notice-title').value,
+      body: document.querySelector('#notice-body').innerHTML
+    })
   });
-  document.querySelector('#notice-title').value = '';
-  document.querySelector('#notice-body').value = '';
+  closeNoticeModal();
   noticesStatus.textContent = 'Aviso guardado';
   await loadNotices();
 }
@@ -268,6 +298,10 @@ document.querySelector('#login-button').addEventListener('click', login);
 document.querySelector('#password').addEventListener('keydown', (event) => { if (event.key === 'Enter') login(); });
 document.querySelector('#load-events').addEventListener('click', () => loadEvents().catch((error) => eventsStatus.textContent = error.message));
 document.querySelector('#save-settings').addEventListener('click', () => saveSettings().catch((error) => settingsStatus.textContent = error.message));
+document.querySelector('#open-notice-modal').addEventListener('click', openNoticeModal);
+document.querySelector('#close-notice-modal').addEventListener('click', closeNoticeModal);
+document.querySelector('#notice-modal').addEventListener('click', (event) => { if (event.target.id === 'notice-modal') closeNoticeModal(); });
+document.querySelectorAll('[data-format]').forEach((button) => button.addEventListener('click', () => formatNoticeText(button.dataset.format)));
 document.querySelector('#save-notice').addEventListener('click', () => saveNotice().catch((error) => noticesStatus.textContent = error.message));
 document.querySelector('#admin-events').addEventListener('change', (event) => {
   if (event.target.matches('[data-event-id]')) changeVisibility(event.target).catch((error) => eventsStatus.textContent = error.message);

@@ -85,14 +85,28 @@
     <section id="notices-panel" class="panel card">
       <h2>Avisos para profesorado</h2>
       <p>Crea avisos reutilizables. En la pestana Mail profesores podras seleccionar cuales incluir antes de los eventos.</p>
-      <div class="grid two">
-        <label>Titulo <input id="notice-title" placeholder="Ej. Recordatorio importante"></label>
-        <label>Texto <textarea id="notice-body" rows="4" placeholder="Escribe el aviso para el profesorado"></textarea></label>
-      </div>
-      <button id="save-notice">Anadir aviso</button>
+      <button id="open-notice-modal">Crear</button>
       <p id="notices-status" class="status"></p>
       <div id="notices-list" class="events"></div>
     </section>
+
+    <div id="notice-modal" class="modal" hidden>
+      <div class="modal-card card" role="dialog" aria-modal="true" aria-labelledby="notice-modal-title">
+        <div class="modal-header">
+          <h2 id="notice-modal-title">Crear aviso</h2>
+          <button id="close-notice-modal" class="secondary" type="button">Cerrar</button>
+        </div>
+        <label>Fecha <input id="notice-date" type="date"></label>
+        <label>Titulo <input id="notice-title" placeholder="Ej. Recordatorio importante"></label>
+        <label>Texto</label>
+        <div class="editor-toolbar" aria-label="Formato del texto">
+          <button type="button" class="secondary" data-format="bold"><strong>Negrita</strong></button>
+          <button type="button" class="secondary" data-format="italic"><em>Cursiva</em></button>
+        </div>
+        <div id="notice-body" class="rich-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Escribe el aviso para el profesorado"></div>
+        <button id="save-notice" type="button">Guardar aviso</button>
+      </div>
+    </div>
 
     <section id="teachers-panel" class="panel card">
       <h2>Enviar eventos a profesores</h2>

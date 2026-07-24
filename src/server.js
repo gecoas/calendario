@@ -228,15 +228,23 @@ function normalizeNotice(input) {
   return {
     id: input.id || crypto.randomUUID(),
     title: String(input.title || '').trim(),
-    body: String(input.body || '').trim(),
+    date: String(input.date || input.createdAt || new Date().toISOString()).slice(0, 10),
+    body: sanitizeNoticeHtml(input.body),
     createdAt: input.createdAt || new Date().toISOString()
   };
+}
+
+function sanitizeNoticeHtml(value) {
+  return escapeHtml(value)
+    .replace(/&lt;(\/)?(strong|b|em|i|p|div|ul|ol|li)&gt;/gi, '<$1$2>')
+    .replace(/&lt;br\s*\/?&gt;/gi, '<br>')
+    .trim();
 }
 
 async function selectedNotices(ids) {
   const wanted = new Set(Array.isArray(ids) ? ids.map(String) : []);
   if (!wanted.size) return [];
-  return (await readJson(noticesPath, [])).filter((notice) => wanted.has(notice.id));
+  return (await readJson(noticesPath, [])).map(normalizeNotice).filter((notice) => wanted.has(notice.id));
 }
 
 function eventDateKeys(event) {
@@ -270,8 +278,8 @@ function buildMailHtml({ title, events, audience, notices = [] }) {
   const intro = audience === 'families' ? 'Eventos visibles para las familias.' : '';
   const noticeItems = notices.map((notice) => `
     <div style="margin:0 0 12px;padding:14px 16px;border:1px solid #eadde2;border-radius:14px;background:#fff8e0;">
-      <div style="color:#a61946;font-weight:800;margin-bottom:6px;">${escapeHtml(notice.title)}</div>
-      <div style="color:#24141a;line-height:1.5;white-space:pre-line;">${escapeHtml(notice.body)}</div>
+      <div style="color:#a61946;font-weight:800;margin-bottom:6px;">${escapeHtml(notice.title)}${notice.date ? ` · ${escapeHtml(notice.date)}` : ''}</div>
+      <div style="color:#24141a;line-height:1.5;">${notice.body}</div>
     </div>`).join('');
   let previousDay = '';
   const items = events.map((event) => {
@@ -563,7 +571,7 @@ async function createApp() {
   });
 
   app.get('/api/notices', requireAdmin, async (_req, res) => {
-    res.json(await readJson(noticesPath, []));
+    res.json((await readJson(noticesPath, [])).map(normalizeNotice));
   });
 
   app.post('/api/notices', requireAdmin, async (req, res) => {
