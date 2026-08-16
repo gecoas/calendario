@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "generator": "gecoas-project-enable-agents",
+  "generator_version": "2.0.0",
+  "profile": "light",
+  "requested_subagent_depth": 1,
+  "effective_subagent_depth": 1,
+  "base_commit": "23265e082751184d7f9a6666992169929b29e92c",
+  "managed_agents": [
+    "director",
+    "desarrollador",
+    "tester"
+  ],
+  "managed_sha256": {
+    "director": "20daaf509c5eff161d91d598e9cb04aa602b13a58e7ad74a3b31afec875c3ccb",
+    "desarrollador": "8ab9764029e3e4ed2488f5bf23cc6239dea30e2aecdeb0550a1c801e0a49e5d3",
+    "tester": "9b718b44671a4cf87cf23483c0623d2585703e4eb0caedc625ae9ba2ade24de2"
+  },
+  "opencode_sha256": "e94ff4b568a11bc36a228fcdc49ec376d0ac9c818a06dfcf0c242adc42ec1bbf"
+}
