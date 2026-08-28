@@ -48,6 +48,11 @@ button.fit-button { width: fit-content; }
 .tab.active { background: var(--brand); color: white; }
 .panel { display: none; }
 .panel.active { display: grid; gap: 18px; }
+.section-heading.compact { display: grid; gap: 4px; }
+.section-heading.compact h2, .section-heading.compact p { margin: 0; }
+.list-toolbar { display: flex; justify-content: flex-end; margin-bottom: -8px; }
+.status.compact-status { min-height: 0; margin: 0; }
+.events.compact-events { margin-top: 0; }
 .login { width: min(420px, calc(100% - 32px)); margin: 12vh auto; }
 .preview { min-height: 180px; background: white; border: 1px solid var(--line); border-radius: 18px; padding: 18px; overflow: auto; }
 .status { min-height: 1.4rem; color: var(--brand-2); font-weight: 800; }
