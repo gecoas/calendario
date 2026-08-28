@@ -327,14 +327,22 @@ function monthGridRange(monthDate) {
   return { start: addDays(first, -((first.getDay() + 6) % 7)), end: addDays(last, 6 - ((last.getDay() + 6) % 7)) };
 }
 
-function mailLogoDataUri() {
+function mailLogoPath() {
   const logoPath = path.join(rootDir, 'public', 'logo-mail.png');
   const fallbackPath = path.join(rootDir, 'public', 'logo.png');
-  const file = fsSync.existsSync(logoPath) ? logoPath : fallbackPath;
-  return `data:image/png;base64,${fsSync.readFileSync(file).toString('base64')}`;
+  return fsSync.existsSync(logoPath) ? logoPath : fallbackPath;
 }
 
-function buildMailHtml({ title, events, audience, notices = [] }) {
+function publicMailLogoUrl(config) {
+  const baseUrl = String(config.publicBaseUrl || '').replace(/\/$/, '');
+  return baseUrl ? `${baseUrl}/logo-mail.png` : '/logo-mail.png';
+}
+
+function mailLogoAttachment() {
+  return { filename: 'logo-mail.png', path: mailLogoPath(), cid: 'logo-mail@calendario' };
+}
+
+function buildMailHtml({ title, events, audience, notices = [], logoSrc = 'cid:logo-mail@calendario' }) {
   const intro = audience === 'families' ? 'Eventos visibles para las familias.' : '';
   const noticeItems = notices.map((notice) => `
     <div style="margin:0 0 12px;padding:14px 16px;border:1px solid #eadde2;border-radius:14px;background:#fff8e0;">
@@ -353,7 +361,7 @@ function buildMailHtml({ title, events, audience, notices = [] }) {
         <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:#24141a;font-weight:700;vertical-align:top;">${time ? `<span style="color:#a61946;margin-right:8px;">${escapeHtml(time)}</span>` : ''}${escapeHtml(event.title)}${event.location ? `<div style="font-weight:400;color:#655761;margin-top:4px;">${escapeHtml(event.location)}</div>` : ''}</td>
       </tr>`;
   }).join('');
-  return `<!doctype html><html><body style="margin:0;background:#f7f2ee;font-family:Arial,Helvetica,sans-serif;color:#24141a;"><div style="max-width:760px;margin:0 auto;padding:28px;"><div style="background:#fff;border:1px solid #eadde2;border-radius:18px;overflow:hidden;"><div style="padding:18px 28px;background:#a61946;color:#fff;"><table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tr><td style="width:54px;vertical-align:middle;padding:0 16px 0 0;"><img src="${mailLogoDataUri()}" alt="Logo colegio" width="46" height="46" style="display:block;width:46px;height:46px;object-fit:contain;"></td><td style="vertical-align:middle;"><h1 style="margin:0;font-size:26px;line-height:1.15;">${escapeHtml(title)}</h1>${intro ? `<p style="margin:8px 0 0;color:#f6d7e1;">${intro}</p>` : ''}</td></tr></table></div>${noticeItems ? `<div style="padding:20px 20px 8px;">${noticeItems}</div>` : ''}<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">${items || '<tr><td style="padding:20px;">No hay eventos en el rango seleccionado.</td></tr>'}</table></div></div></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f7f2ee;font-family:Arial,Helvetica,sans-serif;color:#24141a;"><div style="max-width:760px;margin:0 auto;padding:28px;"><div style="background:#fff;border:1px solid #eadde2;border-radius:18px;overflow:hidden;"><div style="padding:18px 28px;background:#a61946;color:#fff;"><table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tr><td style="width:54px;vertical-align:middle;padding:0 16px 0 0;"><img src="${escapeHtml(logoSrc)}" alt="Logo colegio" width="46" height="46" style="display:block;width:46px;height:46px;object-fit:contain;"></td><td style="vertical-align:middle;"><h1 style="margin:0;font-size:26px;line-height:1.15;">${escapeHtml(title)}</h1>${intro ? `<p style="margin:8px 0 0;color:#f6d7e1;">${intro}</p>` : ''}</td></tr></table></div>${noticeItems ? `<div style="padding:20px 20px 8px;">${noticeItems}</div>` : ''}<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">${items || '<tr><td style="padding:20px;">No hay eventos en el rango seleccionado.</td></tr>'}</table></div></div></body></html>`;
 }
 
 function escapeHtml(value) {
@@ -380,13 +388,13 @@ function transporterFromConfig(config) {
   });
 }
 
-async function sendMail({ title, html, recipientKey }) {
+async function sendMail({ title, html, recipientKey, attachments = [] }) {
   const config = await loadConfig();
   const transporter = transporterFromConfig(config);
   if (!transporter) throw new Error('SMTP no configurado');
   const to = config.mail.recipients[recipientKey];
   if (!to) throw new Error('Destinatario no configurado');
-  await transporter.sendMail({ from: config.mail.from, to, subject: title, html });
+  await transporter.sendMail({ from: config.mail.from, to, subject: title, html, attachments });
 }
 
 function formatSchoolYearForTitle(schoolYear) {
@@ -486,7 +494,7 @@ function planScheduledMail(item) {
       const events = filterByRange(await fetchEvents(), item.from, item.to);
       const notices = await selectedNotices(item.noticeIds);
       const html = buildMailHtml({ title: item.title, events, audience: item.audience, notices });
-      await sendMail({ title: item.title, html, recipientKey: item.recipientKey });
+      await sendMail({ title: item.title, html, recipientKey: item.recipientKey, attachments: [mailLogoAttachment()] });
       await updateScheduleStatus(item.id, 'sent');
     } catch (error) {
       await updateScheduleStatus(item.id, 'error', error.message);
@@ -718,10 +726,11 @@ async function createApp() {
 
   app.post('/api/mail/preview', requireAdmin, async (req, res, next) => {
     try {
+      const cfg = await loadConfig();
       const events = filterByRange(await fetchEvents(), req.body.from, req.body.to);
       const filtered = req.body.audience === 'families' ? events.filter((event) => event.visibleToFamilies) : events;
       const notices = await selectedNotices(req.body.noticeIds);
-      res.json({ html: buildMailHtml({ title: req.body.title || 'Eventos', events: filtered, audience: req.body.audience, notices }), events: filtered, notices });
+      res.json({ html: buildMailHtml({ title: req.body.title || 'Eventos', events: filtered, audience: req.body.audience, notices, logoSrc: publicMailLogoUrl(cfg) }), events: filtered, notices });
     } catch (error) {
       next(error);
     }
@@ -732,7 +741,7 @@ async function createApp() {
       const events = filterByRange(await fetchEvents(), req.body.from, req.body.to);
       const notices = await selectedNotices(req.body.noticeIds);
       const html = buildMailHtml({ title: req.body.title || 'Eventos', events, audience: 'teachers', notices });
-      await sendMail({ title: req.body.title || 'Eventos', html, recipientKey: req.body.recipientKey || 'admin' });
+      await sendMail({ title: req.body.title || 'Eventos', html, recipientKey: req.body.recipientKey || 'admin', attachments: [mailLogoAttachment()] });
       res.json({ ok: true });
     } catch (error) {
       next(error);
