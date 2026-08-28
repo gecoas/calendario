@@ -44,6 +44,9 @@ async function saveConfig(updates) {
       recipients: { ...(config.mail?.recipients || {}), ...(updates.mail.recipients || {}) }
     };
   }
+  if (updates.googleAuth) {
+    config.googleAuth = { ...(config.googleAuth || {}), ...updates.googleAuth };
+  }
   delete config.sessionSecret;
   await writeJson(runtimeConfigPath, config);
   return config;
@@ -71,6 +74,7 @@ function mergeConfig(base, runtime) {
     ...runtime,
     admin: { ...(base.admin || {}), ...(runtime.admin || {}) },
     googleCalendar: { ...(base.googleCalendar || {}), ...(runtime.googleCalendar || {}) },
+    googleAuth: { ...(base.googleAuth || {}), ...(runtime.googleAuth || {}) },
     mail: {
       ...(base.mail || {}),
       ...(runtime.mail || {}),
@@ -88,6 +92,7 @@ async function loadConfig(applyEnv = true) {
   config.mail.smtp = config.mail.smtp || {};
   config.mail.recipients = config.mail.recipients || {};
   config.googleCalendar = config.googleCalendar || {};
+  config.googleAuth = config.googleAuth || {};
   if (applyEnv) {
     config.admin.password = process.env.ADMIN_PASSWORD || config.admin.password;
     config.mail.from = runtimeConfig.mail?.from || config.mail.from;
@@ -99,6 +104,10 @@ async function loadConfig(applyEnv = true) {
     config.mail.smtp.user = runtimeConfig.mail?.smtp?.user || process.env.SMTP_USER || config.mail.smtp.user;
     config.mail.smtp.pass = runtimeConfig.mail?.smtp?.pass || process.env.SMTP_PASS || config.mail.smtp.pass;
     config.googleCalendar.icsUrl = runtimeConfig.googleCalendar?.icsUrl || process.env.GOOGLE_CALENDAR_ICS_URL || config.googleCalendar.icsUrl;
+    config.googleAuth.clientId = runtimeConfig.googleAuth?.clientId || process.env.GOOGLE_AUTH_CLIENT_ID || config.googleAuth.clientId;
+    config.googleAuth.clientSecret = runtimeConfig.googleAuth?.clientSecret || process.env.GOOGLE_AUTH_CLIENT_SECRET || config.googleAuth.clientSecret;
+    config.googleAuth.adminEmails = runtimeConfig.googleAuth?.adminEmails || config.googleAuth.adminEmails || [];
+    config.googleAuth.teacherDomain = runtimeConfig.googleAuth?.teacherDomain || process.env.GOOGLE_AUTH_TEACHER_DOMAIN || config.googleAuth.teacherDomain || 'alcaste-lasfuentes.com';
   }
   config.sessionSecret = process.env.SESSION_SECRET || crypto.createHash('sha256').update(config.admin.password || 'calendar').digest('hex');
   return config;
@@ -113,6 +122,49 @@ function requireCalendarAccess(req, res, next) {
   if (req.query.audience === 'families') return next();
   if (req.session && (req.session.admin || req.session.teacher)) return next();
   return res.status(401).json({ error: 'No autorizado' });
+}
+
+function appBaseUrl(req, config) {
+  if (config.publicBaseUrl) return String(config.publicBaseUrl).replace(/\/$/, '');
+  return `${req.protocol}://${req.get('host')}`;
+}
+
+function googleRedirectUri(req, role, config) {
+  return `${appBaseUrl(req, config)}/api/auth/google/${role}/callback`;
+}
+
+function googleAuthConfigured(config) {
+  return Boolean(config.googleAuth.clientId && config.googleAuth.clientSecret);
+}
+
+function adminEmails(config) {
+  const configured = Array.isArray(config.googleAuth.adminEmails) ? config.googleAuth.adminEmails : String(config.googleAuth.adminEmails || '').split(',');
+  const mailAdmin = String(config.mail?.recipients?.admin || '').split(',');
+  return [...configured, ...mailAdmin].map((email) => email.trim().toLowerCase()).filter(Boolean);
+}
+
+function teacherDomain(config) {
+  return String(config.googleAuth.teacherDomain || 'alcaste-lasfuentes.com').trim().toLowerCase().replace(/^@/, '');
+}
+
+async function fetchGoogleUser(req, role, code, config) {
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code,
+      client_id: config.googleAuth.clientId,
+      client_secret: config.googleAuth.clientSecret,
+      redirect_uri: googleRedirectUri(req, role, config),
+      grant_type: 'authorization_code'
+    })
+  });
+  const token = await tokenResponse.json();
+  if (!tokenResponse.ok) throw new Error(token.error_description || 'Google no ha devuelto un token valido');
+  const userResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { Authorization: `Bearer ${token.access_token}` } });
+  const user = await userResponse.json();
+  if (!userResponse.ok || !user.email || user.email_verified === false) throw new Error('Google no ha verificado la cuenta');
+  return { email: String(user.email).trim().toLowerCase(), name: user.name || '' };
 }
 
 function eventId(event) {
@@ -459,7 +511,11 @@ async function createApp() {
 
   app.get('/api/config', async (_req, res) => {
     const cfg = await loadConfig();
-    res.json({ schoolName: cfg.schoolName, schoolYear: cfg.schoolYear || '2026-2027', publicBaseUrl: cfg.publicBaseUrl });
+    res.json({ schoolName: cfg.schoolName, schoolYear: cfg.schoolYear || '2026-2027', publicBaseUrl: cfg.publicBaseUrl, googleAuthEnabled: googleAuthConfigured(cfg) });
+  });
+
+  app.get('/api/session', (req, res) => {
+    res.json({ admin: Boolean(req.session?.admin), teacher: Boolean(req.session?.teacher), teacherEmail: req.session?.teacher?.email || '' });
   });
 
   app.get('/api/admin/config', requireAdmin, async (_req, res) => {
@@ -483,6 +539,12 @@ async function createApp() {
           user: cfg.mail.smtp.user || '',
           hasPass: Boolean(cfg.mail.smtp.pass)
         }
+      },
+      googleAuth: {
+        clientId: cfg.googleAuth.clientId || '',
+        hasClientSecret: Boolean(cfg.googleAuth.clientSecret),
+        adminEmails: adminEmails(cfg).join(', '),
+        teacherDomain: teacherDomain(cfg)
       }
     });
   });
@@ -491,6 +553,7 @@ async function createApp() {
     const icsUrl = String(req.body.googleCalendar?.icsUrl || '').trim();
     const current = await loadConfig(false);
     const smtpPass = String(req.body.mail?.smtp?.pass || '');
+    const googleClientSecret = String(req.body.googleAuth?.clientSecret || '');
     const config = await saveConfig({
       schoolYear: String(req.body.schoolYear || '2026-2027').trim(),
       googleCalendar: { icsUrl },
@@ -507,6 +570,12 @@ async function createApp() {
           user: String(req.body.mail?.smtp?.user || '').trim(),
           pass: smtpPass || current.mail?.smtp?.pass || ''
         }
+      },
+      googleAuth: {
+        clientId: String(req.body.googleAuth?.clientId || '').trim(),
+        clientSecret: googleClientSecret || current.googleAuth?.clientSecret || '',
+        adminEmails: String(req.body.googleAuth?.adminEmails || '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean),
+        teacherDomain: String(req.body.googleAuth?.teacherDomain || 'alcaste-lasfuentes.com').trim().toLowerCase().replace(/^@/, '')
       }
     });
     res.json({
@@ -529,8 +598,56 @@ async function createApp() {
           user: config.mail.smtp.user || '',
           hasPass: Boolean(config.mail.smtp.pass)
         }
+      },
+      googleAuth: {
+        clientId: config.googleAuth.clientId || '',
+        hasClientSecret: Boolean(config.googleAuth.clientSecret),
+        adminEmails: adminEmails(config).join(', '),
+        teacherDomain: teacherDomain(config)
       }
     });
+  });
+
+  app.get('/api/auth/google/:role', async (req, res, next) => {
+    try {
+      const role = req.params.role === 'admin' ? 'admin' : 'teachers';
+      const cfg = await loadConfig();
+      if (!googleAuthConfigured(cfg)) return res.redirect(role === 'admin' ? '/admin?google=not-configured' : '/profesores?google=not-configured');
+      const state = crypto.randomBytes(24).toString('hex');
+      req.session.googleOAuthState = { state, role };
+      const params = new URLSearchParams({
+        client_id: cfg.googleAuth.clientId,
+        redirect_uri: googleRedirectUri(req, role, cfg),
+        response_type: 'code',
+        scope: 'openid email profile',
+        state,
+        prompt: 'select_account'
+      });
+      res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/auth/google/:role/callback', async (req, res, next) => {
+    try {
+      const role = req.params.role === 'admin' ? 'admin' : 'teachers';
+      const stored = req.session.googleOAuthState;
+      delete req.session.googleOAuthState;
+      if (!stored || stored.state !== req.query.state || stored.role !== role) return res.status(401).send('Sesion de Google no valida');
+      const cfg = await loadConfig();
+      const user = await fetchGoogleUser(req, role, String(req.query.code || ''), cfg);
+      if (role === 'admin') {
+        if (!adminEmails(cfg).includes(user.email)) return res.status(403).send('Cuenta de Google no autorizada como administrador');
+        req.session.admin = true;
+        return res.redirect('/admin');
+      }
+      if (!user.email.endsWith(`@${teacherDomain(cfg)}`)) return res.status(403).send('Usa una cuenta de Google del colegio');
+      req.session.teacher = user;
+      return res.redirect('/profesores');
+    } catch (error) {
+      next(error);
+    }
   });
 
   app.post('/api/login', async (req, res) => {
@@ -544,10 +661,12 @@ async function createApp() {
 
   app.post('/api/logout', requireAdmin, (req, res) => req.session.destroy(() => res.json({ ok: true })));
 
-  app.post('/api/teacher/login', (req, res) => {
+  app.post('/api/teacher/login', async (req, res) => {
+    const cfg = await loadConfig();
+    const domain = teacherDomain(cfg);
     const email = String(req.body.email || '').trim().toLowerCase();
-    if (!email.endsWith('@alcaste-lasfuentes.com')) {
-      return res.status(401).json({ error: 'Usa un correo del colegio @alcaste-lasfuentes.com' });
+    if (!email.endsWith(`@${domain}`)) {
+      return res.status(401).json({ error: `Usa un correo del colegio @${domain}` });
     }
     req.session.teacher = { email };
     return res.json({ ok: true });

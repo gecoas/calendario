@@ -58,6 +58,12 @@ async function loadConfig() {
   courseTitleEl.textContent = `Calendario curso ${config.schoolYear || '2026-2027'}`;
 }
 
+function googleLoginMessage() {
+  const value = new URLSearchParams(window.location.search).get('google');
+  if (value === 'not-configured') return 'Acceso con Google no configurado todavia.';
+  return '';
+}
+
 async function loadEvents() {
   const range = monthGridRange(currentMonth);
   const params = new URLSearchParams({ audience, from: localIsoDate(range.start), to: localIsoDate(range.end) });
@@ -135,9 +141,23 @@ async function teacherLogin() {
   await loadEvents();
 }
 
+async function loadTeacherSession() {
+  const response = await fetch('/api/session', { credentials: 'same-origin' });
+  const session = await response.json();
+  if (!session.teacher) {
+    teacherStatusEl.textContent = googleLoginMessage();
+    return;
+  }
+  teacherLoginEl.hidden = true;
+  teacherCalendarEl.hidden = false;
+  await loadConfig();
+  await loadEvents();
+}
+
 if (audience === 'teachers') {
   document.querySelector('#teacher-login-button').addEventListener('click', () => teacherLogin().catch((error) => teacherStatusEl.textContent = error.message));
   document.querySelector('#teacher-email').addEventListener('keydown', (event) => { if (event.key === 'Enter') teacherLogin(); });
+  loadTeacherSession().catch((error) => teacherStatusEl.textContent = error.message);
 } else {
   loadConfig();
   loadEvents().catch(() => calendarEl.innerHTML = '');

@@ -64,6 +64,23 @@ async function request(path, options = {}) {
   return body;
 }
 
+function googleLoginMessage() {
+  const value = new URLSearchParams(window.location.search).get('google');
+  if (value === 'not-configured') return 'Acceso con Google no configurado todavia.';
+  return '';
+}
+
+async function loadSession() {
+  const session = await request('/api/session');
+  if (!session.admin) {
+    loginStatus.textContent = googleLoginMessage();
+    return;
+  }
+  loginView.hidden = true;
+  adminView.hidden = false;
+  await initializeAdmin();
+}
+
 async function login() {
   loginStatus.textContent = 'Comprobando acceso...';
   try {
@@ -101,6 +118,10 @@ async function loadAdminConfig() {
   document.querySelector('#smtp-secure').value = String(Boolean(config.mail.smtp.secure));
   document.querySelector('#smtp-user').value = config.mail.smtp.user || '';
   document.querySelector('#smtp-pass').placeholder = config.mail.smtp.hasPass ? 'Contrasena guardada; dejar en blanco para no cambiar' : 'Sin contrasena guardada';
+  document.querySelector('#google-client-id').value = config.googleAuth.clientId || '';
+  document.querySelector('#google-client-secret').placeholder = config.googleAuth.hasClientSecret ? 'Secreto guardado; dejar en blanco para no cambiar' : 'Sin secreto guardado';
+  document.querySelector('#google-admin-emails').value = config.googleAuth.adminEmails || '';
+  document.querySelector('#google-teacher-domain').value = config.googleAuth.teacherDomain || 'alcaste-lasfuentes.com';
   document.querySelector('#recipient option[value="admin"]').textContent = config.mail.recipients.admin ? `Cuenta administrador (${config.mail.recipients.admin})` : 'Cuenta administrador';
   document.querySelector('#recipient option[value="teachers"]').textContent = config.mail.recipients.teachers || 'profesores@alcaste-lasfuentes.com';
 }
@@ -125,11 +146,18 @@ async function saveSettings() {
           user: document.querySelector('#smtp-user').value,
           pass: document.querySelector('#smtp-pass').value
         }
+      },
+      googleAuth: {
+        clientId: document.querySelector('#google-client-id').value,
+        clientSecret: document.querySelector('#google-client-secret').value,
+        adminEmails: document.querySelector('#google-admin-emails').value,
+        teacherDomain: document.querySelector('#google-teacher-domain').value
       }
     })
   });
   document.querySelector('#calendar-resolved-url').value = config.googleCalendar.resolvedIcsUrl || '';
   document.querySelector('#smtp-pass').value = '';
+  document.querySelector('#google-client-secret').value = '';
   await loadAdminConfig();
   settingsStatus.textContent = 'Configuracion guardada';
   await loadEvents();
@@ -327,3 +355,5 @@ document.querySelectorAll('.tab').forEach((tab) => {
     document.querySelector(`#${tab.dataset.tab}`).classList.add('active');
   });
 });
+
+loadSession().catch((error) => loginStatus.textContent = error.message);

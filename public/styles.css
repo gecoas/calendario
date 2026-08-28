@@ -28,7 +28,9 @@ label { display: grid; gap: 6px; color: var(--muted); font-size: .9rem; font-wei
 input, select, textarea, button { width: 100%; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; font: inherit; background: #fff; color: var(--ink); }
 textarea { resize: vertical; }
 button { border: 0; background: var(--brand); color: white; font-weight: 800; cursor: pointer; }
+a.button { display: inline-flex; align-items: center; justify-content: center; width: 100%; border-radius: 14px; padding: 12px 14px; text-decoration: none; font-weight: 800; }
 button.secondary { background: #e6dac7; color: var(--ink); }
+a.button.secondary { background: #e6dac7; color: var(--ink); }
 button.warn { background: var(--brand-2); }
 button:disabled { opacity: .55; cursor: not-allowed; }
 .events { display: grid; gap: 12px; margin-top: 18px; }

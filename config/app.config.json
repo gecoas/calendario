@@ -9,6 +9,12 @@
   "admin": {
     "password": "cambia-esta-contrasena"
   },
+  "googleAuth": {
+    "clientId": "",
+    "clientSecret": "",
+    "adminEmails": [],
+    "teacherDomain": "alcaste-lasfuentes.com"
+  },
   "mail": {
     "from": "Calendario Colegio <no-reply@example.com>",
     "smtp": {

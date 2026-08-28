@@ -13,6 +13,7 @@
     <p>Introduce la contrasena configurada para gestionar eventos, correos y PDF.</p>
     <label>Contrasena <input id="password" type="password" autocomplete="current-password"></label>
     <button id="login-button">Entrar</button>
+    <a class="button secondary" href="/api/auth/google/admin">Entrar con Google</a>
     <p id="login-status" class="status"></p>
   </section>
 
@@ -66,6 +67,16 @@
         </label>
         <label>Usuario SMTP <input id="smtp-user" autocomplete="username"></label>
         <label>Contrasena SMTP <input id="smtp-pass" type="password" autocomplete="new-password" placeholder="Dejar en blanco para no cambiar"></label>
+      </div>
+      <h2>Acceso con Google</h2>
+      <p>Configura un OAuth Client de Google con estas URLs de redireccion: <code>https://calendario.gecoas.es/api/auth/google/admin/callback</code> y <code>https://calendario.gecoas.es/api/auth/google/teachers/callback</code>.</p>
+      <div class="grid two">
+        <label>Google Client ID <input id="google-client-id" autocomplete="off"></label>
+        <label>Google Client Secret <input id="google-client-secret" type="password" autocomplete="new-password" placeholder="Dejar en blanco para no cambiar"></label>
+      </div>
+      <div class="grid two">
+        <label>Emails administradores <input id="google-admin-emails" placeholder="admin@alcaste-lasfuentes.com, otro@alcaste-lasfuentes.com"></label>
+        <label>Dominio profesores <input id="google-teacher-domain" placeholder="alcaste-lasfuentes.com"></label>
       </div>
       <button id="save-settings">Guardar configuracion</button>
       <p id="settings-status" class="status"></p>
