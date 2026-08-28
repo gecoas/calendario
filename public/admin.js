@@ -6,6 +6,8 @@ const mailStatus = document.querySelector('#mail-status');
 const pdfStatus = document.querySelector('#pdf-status');
 const settingsStatus = document.querySelector('#settings-status');
 const noticesStatus = document.querySelector('#notices-status');
+let noticesCache = [];
+let editingNoticeId = '';
 
 function isoDate(date) {
   return date.toISOString().slice(0, 10);
@@ -193,6 +195,7 @@ async function changeVisibility(input) {
 
 async function loadNotices() {
   const notices = await request('/api/notices');
+  noticesCache = notices;
   document.querySelector('#notices-list').innerHTML = notices.map((notice) => `
     <article class="event notice-item">
       <time>${new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${notice.date}T12:00:00`))}</time>
@@ -200,7 +203,10 @@ async function loadNotices() {
         <h3>${escapeHtml(notice.title)}</h3>
         <div class="notice-body">${notice.body}</div>
       </div>
-      <button class="secondary" data-delete-notice="${notice.id}">Borrar</button>
+      <div class="actions-inline">
+        <button class="secondary" data-edit-notice="${notice.id}">Editar</button>
+        <button class="secondary" data-delete-notice="${notice.id}">Borrar</button>
+      </div>
     </article>
   `).join('') || '<p>No hay avisos guardados.</p>';
   document.querySelector('#mail-notices').innerHTML = notices.map((notice) => `
@@ -211,10 +217,17 @@ async function loadNotices() {
   `).join('') || '<p>No hay avisos disponibles.</p>';
 }
 
-function openNoticeModal() {
-  document.querySelector('#notice-date').value = todayIso();
-  document.querySelector('#notice-title').value = '';
-  document.querySelector('#notice-body').innerHTML = '';
+function fillNoticeModal(notice = {}) {
+  editingNoticeId = notice.id || '';
+  document.querySelector('#notice-modal-title').textContent = editingNoticeId ? 'Editar aviso' : 'Crear aviso';
+  document.querySelector('#notice-date').value = notice.date || todayIso();
+  document.querySelector('#notice-title').value = notice.title || '';
+  document.querySelector('#notice-body').innerHTML = notice.body || '';
+  document.querySelector('#save-notice').textContent = editingNoticeId ? 'Guardar cambios' : 'Guardar aviso';
+}
+
+function openNoticeModal(notice) {
+  fillNoticeModal(notice);
   document.querySelector('#notice-modal').hidden = false;
   document.querySelector('#notice-title').focus();
 }
@@ -230,8 +243,8 @@ function formatNoticeText(command) {
 
 async function saveNotice() {
   noticesStatus.textContent = 'Guardando aviso...';
-  await request('/api/notices', {
-    method: 'POST',
+  await request(editingNoticeId ? `/api/notices/${editingNoticeId}` : '/api/notices', {
+    method: editingNoticeId ? 'PUT' : 'POST',
     body: JSON.stringify({
       date: document.querySelector('#notice-date').value,
       title: document.querySelector('#notice-title').value,
@@ -326,7 +339,7 @@ document.querySelector('#login-button').addEventListener('click', login);
 document.querySelector('#password').addEventListener('keydown', (event) => { if (event.key === 'Enter') login(); });
 document.querySelector('#load-events').addEventListener('click', () => loadEvents().catch((error) => eventsStatus.textContent = error.message));
 document.querySelector('#save-settings').addEventListener('click', () => saveSettings().catch((error) => settingsStatus.textContent = error.message));
-document.querySelector('#open-notice-modal').addEventListener('click', openNoticeModal);
+document.querySelector('#open-notice-modal').addEventListener('click', () => openNoticeModal());
 document.querySelector('#close-notice-modal').addEventListener('click', closeNoticeModal);
 document.querySelector('#notice-modal').addEventListener('click', (event) => { if (event.target.id === 'notice-modal') closeNoticeModal(); });
 document.querySelectorAll('[data-format]').forEach((button) => button.addEventListener('click', () => formatNoticeText(button.dataset.format)));
@@ -335,8 +348,10 @@ document.querySelector('#admin-events').addEventListener('change', (event) => {
   if (event.target.matches('[data-event-id]')) changeVisibility(event.target).catch((error) => eventsStatus.textContent = error.message);
 });
 document.querySelector('#notices-list').addEventListener('click', (event) => {
-  const id = event.target.dataset.deleteNotice;
-  if (id) deleteNotice(id).catch((error) => noticesStatus.textContent = error.message);
+  const editId = event.target.dataset.editNotice;
+  const deleteId = event.target.dataset.deleteNotice;
+  if (editId) openNoticeModal(noticesCache.find((notice) => notice.id === editId));
+  if (deleteId) deleteNotice(deleteId).catch((error) => noticesStatus.textContent = error.message);
 });
 document.querySelector('#preview-mail').addEventListener('click', () => previewMail().catch((error) => mailStatus.textContent = error.message));
 document.querySelector('#send-mail').addEventListener('click', () => sendMail().catch((error) => mailStatus.textContent = error.message));

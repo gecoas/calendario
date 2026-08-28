@@ -346,7 +346,7 @@ function buildMailHtml({ title, events, audience, notices = [], logoSrc = 'cid:l
   const intro = audience === 'families' ? 'Eventos visibles para las familias.' : '';
   const noticeItems = notices.map((notice) => `
     <div style="margin:0 0 12px;padding:14px 16px;border:1px solid #eadde2;border-radius:14px;background:#fff8e0;">
-      <div style="color:#a61946;font-weight:800;margin-bottom:6px;">${escapeHtml(notice.title)}${notice.date ? ` · ${escapeHtml(notice.date)}` : ''}</div>
+      <div style="color:#a61946;font-weight:800;margin-bottom:6px;">${escapeHtml(notice.title)}</div>
       <div style="color:#24141a;line-height:1.5;">${notice.body}</div>
     </div>`).join('');
   let previousDay = '';
@@ -714,6 +714,17 @@ async function createApp() {
     if (!notice.title || !notice.body) return res.status(400).json({ error: 'El aviso necesita titulo y texto' });
     const notices = await readJson(noticesPath, []);
     notices.unshift(notice);
+    await writeJson(noticesPath, notices);
+    res.json(notice);
+  });
+
+  app.put('/api/notices/:id', requireAdmin, async (req, res) => {
+    const notices = await readJson(noticesPath, []);
+    const index = notices.findIndex((notice) => notice.id === req.params.id);
+    if (index === -1) return res.status(404).json({ error: 'Aviso no encontrado' });
+    const notice = normalizeNotice({ ...notices[index], ...req.body, id: req.params.id, createdAt: notices[index].createdAt });
+    if (!notice.title || !notice.body) return res.status(400).json({ error: 'El aviso necesita titulo y texto' });
+    notices[index] = notice;
     await writeJson(noticesPath, notices);
     res.json(notice);
   });
