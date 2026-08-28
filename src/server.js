@@ -5,6 +5,7 @@ const nodemailer = require('nodemailer');
 const PDFDocument = require('pdfkit');
 const crypto = require('crypto');
 const fs = require('fs/promises');
+const fsSync = require('fs');
 const path = require('path');
 
 const rootDir = path.join(__dirname, '..');
@@ -326,6 +327,13 @@ function monthGridRange(monthDate) {
   return { start: addDays(first, -((first.getDay() + 6) % 7)), end: addDays(last, 6 - ((last.getDay() + 6) % 7)) };
 }
 
+function mailLogoDataUri() {
+  const logoPath = path.join(rootDir, 'public', 'logo-mail.png');
+  const fallbackPath = path.join(rootDir, 'public', 'logo.png');
+  const file = fsSync.existsSync(logoPath) ? logoPath : fallbackPath;
+  return `data:image/png;base64,${fsSync.readFileSync(file).toString('base64')}`;
+}
+
 function buildMailHtml({ title, events, audience, notices = [] }) {
   const intro = audience === 'families' ? 'Eventos visibles para las familias.' : '';
   const noticeItems = notices.map((notice) => `
@@ -345,7 +353,7 @@ function buildMailHtml({ title, events, audience, notices = [] }) {
         <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:#24141a;font-weight:700;vertical-align:top;">${time ? `<span style="color:#a61946;margin-right:8px;">${escapeHtml(time)}</span>` : ''}${escapeHtml(event.title)}${event.location ? `<div style="font-weight:400;color:#655761;margin-top:4px;">${escapeHtml(event.location)}</div>` : ''}</td>
       </tr>`;
   }).join('');
-  return `<!doctype html><html><body style="margin:0;background:#f7f2ee;font-family:Arial,Helvetica,sans-serif;color:#24141a;"><div style="max-width:760px;margin:0 auto;padding:28px;"><div style="background:#fff;border:1px solid #eadde2;border-radius:18px;overflow:hidden;"><div style="padding:24px 28px;background:#a61946;color:#fff;"><h1 style="margin:0;font-size:26px;">${escapeHtml(title)}</h1>${intro ? `<p style="margin:8px 0 0;color:#f6d7e1;">${intro}</p>` : ''}</div>${noticeItems ? `<div style="padding:20px 20px 8px;">${noticeItems}</div>` : ''}<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">${items || '<tr><td style="padding:20px;">No hay eventos en el rango seleccionado.</td></tr>'}</table></div></div></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f7f2ee;font-family:Arial,Helvetica,sans-serif;color:#24141a;"><div style="max-width:760px;margin:0 auto;padding:28px;"><div style="background:#fff;border:1px solid #eadde2;border-radius:18px;overflow:hidden;"><div style="padding:18px 28px;background:#a61946;color:#fff;"><table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tr><td style="width:54px;vertical-align:middle;padding:0 16px 0 0;"><img src="${mailLogoDataUri()}" alt="Logo colegio" width="46" height="46" style="display:block;width:46px;height:46px;object-fit:contain;"></td><td style="vertical-align:middle;"><h1 style="margin:0;font-size:26px;line-height:1.15;">${escapeHtml(title)}</h1>${intro ? `<p style="margin:8px 0 0;color:#f6d7e1;">${intro}</p>` : ''}</td></tr></table></div>${noticeItems ? `<div style="padding:20px 20px 8px;">${noticeItems}</div>` : ''}<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">${items || '<tr><td style="padding:20px;">No hay eventos en el rango seleccionado.</td></tr>'}</table></div></div></body></html>`;
 }
 
 function escapeHtml(value) {

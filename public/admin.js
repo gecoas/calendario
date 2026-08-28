@@ -313,7 +313,7 @@ async function downloadPdf() {
 
 async function loadScheduled() {
   const scheduled = await request('/api/mail/scheduled');
-  document.querySelector('#scheduled').innerHTML = scheduled.map((item) => `
+  document.querySelector('#scheduled').innerHTML = scheduled.sort((a, b) => new Date(b.sendAt) - new Date(a.sendAt)).map((item) => `
     <article class="event">
       <time>${formatDate(item.sendAt)}</time>
       <div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.from)} a ${escapeHtml(item.to)} · ${escapeHtml(item.recipientKey)}</p></div>
