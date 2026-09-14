@@ -62,7 +62,7 @@ button.fit-button { width: fit-content; }
 .notice-option input { width: auto; margin-top: 4px; }
 .notice-option span { display: grid; gap: 4px; }
 .notice-option small { color: var(--muted); font-weight: 500; white-space: pre-line; }
-.drag-handle { cursor: grab; user-select: none; border-radius: 999px; background: #e6dac7; color: var(--ink); padding: 4px 8px; font-size: .72rem; font-weight: 800; }
+.drag-handle { width: 18px; height: 24px; flex: 0 0 18px; cursor: grab; user-select: none; border-radius: 6px; background: radial-gradient(circle, var(--muted) 2px, transparent 2.5px) 0 2px / 8px 8px; }
 .notice-body { color: var(--muted); line-height: 1.55; }
 .modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 18px; background: rgba(36, 20, 26, .42); }
 .modal[hidden] { display: none; }

@@ -222,7 +222,7 @@ async function loadNotices() {
   `).join('') || '<p>No hay avisos guardados.</p>';
   document.querySelector('#mail-notices').innerHTML = notices.map((notice) => `
     <label class="notice-option" draggable="true" data-notice-option="${notice.id}">
-      <span class="drag-handle" aria-hidden="true">Arrastrar</span>
+      <span class="drag-handle" aria-label="Arrastrar para reordenar" title="Arrastrar para reordenar"></span>
       <input type="checkbox" value="${notice.id}">
       <span><strong>${escapeHtml(notice.title)} · ${escapeHtml(notice.date)}</strong><small>${escapeHtml(htmlToText(notice.body))}</small></span>
     </label>
