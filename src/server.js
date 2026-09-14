@@ -288,10 +288,39 @@ function normalizeNotice(input) {
 }
 
 function sanitizeNoticeHtml(value) {
-  return escapeHtml(value)
-    .replace(/&lt;(\/)?(strong|b|em|i|p|div|ul|ol|li)&gt;/gi, '<$1$2>')
-    .replace(/&lt;br\s*\/?&gt;/gi, '<br>')
-    .trim();
+  const allowed = new Set(['strong', 'b', 'em', 'i', 'p', 'div', 'ul', 'ol', 'li', 'br']);
+  const input = decodeHtmlEntities(String(value || ''))
+    .replace(/\u00a0/g, ' ')
+    .replace(/<\s*(script|style)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
+  let output = '';
+  let cursor = 0;
+  const tagPattern = /<\s*(\/?)\s*([a-z0-9-]+)(?:\s[^>]*)?\s*\/?>/gi;
+  let match;
+  while ((match = tagPattern.exec(input))) {
+    output += escapeHtml(input.slice(cursor, match.index));
+    const tag = match[2].toLowerCase();
+    if (allowed.has(tag)) {
+      const canonical = tag === 'b' ? 'strong' : tag === 'i' ? 'em' : tag;
+      output += canonical === 'br' ? '<br>' : `<${match[1] ? '/' : ''}${canonical}>`;
+    }
+    cursor = tagPattern.lastIndex;
+  }
+  output += escapeHtml(input.slice(cursor));
+  return output.replace(/\s+/g, ' ').replace(/\s*<br>\s*/g, '<br>').trim();
+}
+
+function decodeHtmlEntities(value) {
+  let decoded = value;
+  for (let index = 0; index < 2; index += 1) {
+    decoded = decoded
+      .replace(/&amp;/gi, '&')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>');
+  }
+  return decoded;
 }
 
 async function selectedNotices(ids) {

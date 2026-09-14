@@ -49,6 +49,17 @@ function htmlToText(value) {
   return wrapper.textContent || '';
 }
 
+function cleanNoticeHtml(value) {
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = value || '';
+  wrapper.querySelectorAll('script, style').forEach((node) => node.remove());
+  wrapper.querySelectorAll('*').forEach((node) => {
+    if (!['STRONG', 'B', 'EM', 'I', 'P', 'DIV', 'UL', 'OL', 'LI', 'BR'].includes(node.tagName)) node.replaceWith(...node.childNodes);
+    else [...node.attributes].forEach((attribute) => node.removeAttribute(attribute.name));
+  });
+  return wrapper.innerHTML.replace(/&nbsp;/g, ' ').trim();
+}
+
 function todayIso() {
   return isoDate(new Date());
 }
@@ -248,7 +259,7 @@ async function saveNotice() {
     body: JSON.stringify({
       date: document.querySelector('#notice-date').value,
       title: document.querySelector('#notice-title').value,
-      body: document.querySelector('#notice-body').innerHTML
+      body: cleanNoticeHtml(document.querySelector('#notice-body').innerHTML)
     })
   });
   closeNoticeModal();
