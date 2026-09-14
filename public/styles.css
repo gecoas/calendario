@@ -58,9 +58,11 @@ button.fit-button { width: fit-content; }
 .status { min-height: 1.4rem; color: var(--brand-2); font-weight: 800; }
 .notice-picker { display: grid; gap: 10px; }
 .notice-option { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.55); }
+.notice-option.dragging { opacity: .55; }
 .notice-option input { width: auto; margin-top: 4px; }
 .notice-option span { display: grid; gap: 4px; }
 .notice-option small { color: var(--muted); font-weight: 500; white-space: pre-line; }
+.drag-handle { cursor: grab; user-select: none; border-radius: 999px; background: #e6dac7; color: var(--ink); padding: 4px 8px; font-size: .72rem; font-weight: 800; }
 .notice-body { color: var(--muted); line-height: 1.55; }
 .modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 18px; background: rgba(36, 20, 26, .42); }
 .modal[hidden] { display: none; }

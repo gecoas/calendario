@@ -326,7 +326,8 @@ function decodeHtmlEntities(value) {
 async function selectedNotices(ids) {
   const wanted = new Set(Array.isArray(ids) ? ids.map(String) : []);
   if (!wanted.size) return [];
-  return (await readJson(noticesPath, [])).map(normalizeNotice).filter((notice) => wanted.has(notice.id));
+  const noticesById = new Map((await readJson(noticesPath, [])).map(normalizeNotice).map((notice) => [notice.id, notice]));
+  return [...wanted].map((id) => noticesById.get(id)).filter(Boolean);
 }
 
 function eventDateKeys(event) {

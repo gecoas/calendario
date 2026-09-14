@@ -221,7 +221,8 @@ async function loadNotices() {
     </article>
   `).join('') || '<p>No hay avisos guardados.</p>';
   document.querySelector('#mail-notices').innerHTML = notices.map((notice) => `
-    <label class="notice-option">
+    <label class="notice-option" draggable="true" data-notice-option="${notice.id}">
+      <span class="drag-handle" aria-hidden="true">Arrastrar</span>
       <input type="checkbox" value="${notice.id}">
       <span><strong>${escapeHtml(notice.title)} · ${escapeHtml(notice.date)}</strong><small>${escapeHtml(htmlToText(notice.body))}</small></span>
     </label>
@@ -363,6 +364,24 @@ document.querySelector('#notices-list').addEventListener('click', (event) => {
   const deleteId = event.target.dataset.deleteNotice;
   if (editId) openNoticeModal(noticesCache.find((notice) => notice.id === editId));
   if (deleteId) deleteNotice(deleteId).catch((error) => noticesStatus.textContent = error.message);
+});
+document.querySelector('#mail-notices').addEventListener('dragstart', (event) => {
+  const option = event.target.closest('[data-notice-option]');
+  if (!option) return;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', option.dataset.noticeOption);
+  option.classList.add('dragging');
+});
+document.querySelector('#mail-notices').addEventListener('dragend', (event) => {
+  event.target.closest('[data-notice-option]')?.classList.remove('dragging');
+});
+document.querySelector('#mail-notices').addEventListener('dragover', (event) => {
+  const dragging = document.querySelector('#mail-notices .dragging');
+  const target = event.target.closest('[data-notice-option]');
+  if (!dragging || !target || dragging === target) return;
+  event.preventDefault();
+  const afterTarget = event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
+  target.parentNode.insertBefore(dragging, afterTarget ? target.nextSibling : target);
 });
 document.querySelector('#preview-mail').addEventListener('click', () => previewMail().catch((error) => mailStatus.textContent = error.message));
 document.querySelector('#send-mail').addEventListener('click', () => sendMail().catch((error) => mailStatus.textContent = error.message));
