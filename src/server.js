@@ -334,7 +334,13 @@ async function markNoticesSent(ids, sentAt = new Date().toISOString()) {
   const wanted = new Set(Array.isArray(ids) ? ids.map(String) : []);
   if (!wanted.size) return;
   const notices = await readJson(noticesPath, []);
-  await writeJson(noticesPath, notices.map((notice) => wanted.has(notice.id) ? { ...notice, sentAt } : notice));
+  let changed = false;
+  const updated = notices.map((notice) => {
+    if (!wanted.has(notice.id) || (notice.sentAt && new Date(notice.sentAt).getTime() >= new Date(sentAt).getTime())) return notice;
+    changed = true;
+    return { ...notice, sentAt };
+  });
+  if (changed) await writeJson(noticesPath, updated);
 }
 
 function eventDateKeys(event) {
@@ -553,13 +559,21 @@ async function processDueScheduledMails() {
 
 async function recoverInterruptedScheduledMails() {
   const scheduled = await readJson(scheduledPath, []);
-  let recovered = false;
+  let changed = false;
   const updated = scheduled.map((item) => {
-    if (item.status !== 'sending') return item;
-    recovered = true;
-    return { ...item, status: 'pending', updatedAt: new Date().toISOString() };
+    if (item.status === 'sending') {
+      changed = true;
+      return { ...item, status: 'pending', updatedAt: new Date().toISOString() };
+    }
+    if (item.status === 'sent' && !item.sentAt) {
+      changed = true;
+      return { ...item, sentAt: item.updatedAt || item.sendAt };
+    }
+    return item;
   });
-  if (recovered) await writeJson(scheduledPath, updated);
+  if (changed) await writeJson(scheduledPath, updated);
+  const sentItems = updated.filter((item) => item.status === 'sent' && item.noticeIds?.length).sort((a, b) => new Date(a.sentAt || a.updatedAt || a.sendAt) - new Date(b.sentAt || b.updatedAt || b.sendAt));
+  for (const item of sentItems) await markNoticesSent(item.noticeIds, item.sentAt || item.updatedAt || item.sendAt);
 }
 
 async function updateScheduleStatus(id, status, error, sentAt) {
