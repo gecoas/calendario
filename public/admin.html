@@ -75,7 +75,10 @@
         <label>Google Client Secret <input id="google-client-secret" type="password" autocomplete="new-password" placeholder="Dejar en blanco para no cambiar"></label>
       </div>
       <div class="grid two">
-        <label>Emails administradores <input id="google-admin-emails" placeholder="admin@alcaste-lasfuentes.com, otro@alcaste-lasfuentes.com"></label>
+        <label>Usuarios administradores (cuentas Google)
+          <textarea id="google-admin-emails" rows="3" placeholder="Una cuenta de Google por línea"></textarea>
+          <small>Admite varias cuentas; separa los emails por líneas, comas o punto y coma.</small>
+        </label>
         <label>Dominio profesores <input id="google-teacher-domain" placeholder="alcaste-lasfuentes.com"></label>
       </div>
       <button id="save-settings">Guardar configuracion</button>

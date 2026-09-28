@@ -139,9 +139,8 @@ function googleAuthConfigured(config) {
 }
 
 function adminEmails(config) {
-  const configured = Array.isArray(config.googleAuth.adminEmails) ? config.googleAuth.adminEmails : String(config.googleAuth.adminEmails || '').split(',');
-  const mailAdmin = String(config.mail?.recipients?.admin || '').split(',');
-  return [...configured, ...mailAdmin].map((email) => email.trim().toLowerCase()).filter(Boolean);
+  const parse = (value) => (Array.isArray(value) ? value : [value]).flatMap((entry) => String(entry || '').split(/[,;\n]+/));
+  return [...parse(config.googleAuth.adminEmails), ...parse(config.mail?.recipients?.admin)].map((email) => email.trim().toLowerCase()).filter(Boolean);
 }
 
 function teacherDomain(config) {
@@ -283,6 +282,7 @@ function normalizeNotice(input) {
     title: String(input.title || '').trim(),
     date: String(input.date || input.createdAt || new Date().toISOString()).slice(0, 10),
     body: sanitizeNoticeHtml(input.body),
+    sentAt: input.sentAt || null,
     createdAt: input.createdAt || new Date().toISOString()
   };
 }
@@ -328,6 +328,13 @@ async function selectedNotices(ids) {
   if (!wanted.size) return [];
   const noticesById = new Map((await readJson(noticesPath, [])).map(normalizeNotice).map((notice) => [notice.id, notice]));
   return [...wanted].map((id) => noticesById.get(id)).filter(Boolean);
+}
+
+async function markNoticesSent(ids, sentAt = new Date().toISOString()) {
+  const wanted = new Set(Array.isArray(ids) ? ids.map(String) : []);
+  if (!wanted.size) return;
+  const notices = await readJson(noticesPath, []);
+  await writeJson(noticesPath, notices.map((notice) => wanted.has(notice.id) ? { ...notice, sentAt } : notice));
 }
 
 function eventDateKeys(event) {
@@ -512,30 +519,67 @@ async function scheduleMail(payload) {
   const item = { id: crypto.randomUUID(), status: 'pending', createdAt: new Date().toISOString(), ...payload };
   scheduled.push(item);
   await writeJson(scheduledPath, scheduled);
-  planScheduledMail(item);
+  processDueScheduledMails().catch((error) => console.error('Error revisando correos programados:', error));
   return item;
 }
 
-function planScheduledMail(item) {
-  const delay = new Date(item.sendAt).getTime() - Date.now();
-  if (!Number.isFinite(delay) || delay <= 0 || delay > 2147483647) return;
-  setTimeout(async () => {
-    try {
-      const events = filterByRange(await fetchEvents(), item.from, item.to);
-      const notices = await selectedNotices(item.noticeIds);
-      const html = buildMailHtml({ title: item.title, events, audience: item.audience, notices });
-      await sendMail({ title: item.title, html, recipientKey: item.recipientKey, attachments: [mailLogoAttachment()] });
-      await updateScheduleStatus(item.id, 'sent');
-    } catch (error) {
-      await updateScheduleStatus(item.id, 'error', error.message);
+let processingScheduledMail = false;
+
+async function processDueScheduledMails() {
+  if (processingScheduledMail) return;
+  processingScheduledMail = true;
+  try {
+    const scheduled = await readJson(scheduledPath, []);
+    const dueItems = scheduled.filter((item) => item.status === 'pending' && Number.isFinite(new Date(item.sendAt).getTime()) && new Date(item.sendAt).getTime() <= Date.now());
+    for (const item of dueItems) {
+      await updateScheduleStatus(item.id, 'sending');
+      try {
+        const events = filterByRange(await fetchEvents(), item.from, item.to);
+        const notices = await selectedNotices(item.noticeIds);
+        const html = buildMailHtml({ title: item.title, events, audience: item.audience, notices });
+        await sendMail({ title: item.title, html, recipientKey: item.recipientKey, attachments: [mailLogoAttachment()] });
+        const sentAt = new Date().toISOString();
+        await markNoticesSent(item.noticeIds, sentAt);
+        await updateScheduleStatus(item.id, 'sent', undefined, sentAt);
+      } catch (error) {
+        console.error(`Error enviando correo programado ${item.id}:`, error);
+        await updateScheduleStatus(item.id, 'error', error.message);
+      }
     }
-  }, delay);
+  } finally {
+    processingScheduledMail = false;
+  }
 }
 
-async function updateScheduleStatus(id, status, error) {
+async function recoverInterruptedScheduledMails() {
   const scheduled = await readJson(scheduledPath, []);
-  const updated = scheduled.map((item) => item.id === id ? { ...item, status, error, updatedAt: new Date().toISOString() } : item);
+  let recovered = false;
+  const updated = scheduled.map((item) => {
+    if (item.status !== 'sending') return item;
+    recovered = true;
+    return { ...item, status: 'pending', updatedAt: new Date().toISOString() };
+  });
+  if (recovered) await writeJson(scheduledPath, updated);
+}
+
+async function updateScheduleStatus(id, status, error, sentAt) {
+  const scheduled = await readJson(scheduledPath, []);
+  const updated = scheduled.map((item) => item.id === id ? {
+    ...item,
+    status,
+    ...(error ? { error } : {}),
+    ...(sentAt ? { sentAt } : {}),
+    updatedAt: new Date().toISOString()
+  } : item);
   await writeJson(scheduledPath, updated);
+}
+
+async function sendImmediateMail(payload) {
+  const events = filterByRange(await fetchEvents(), payload.from, payload.to);
+  const notices = await selectedNotices(payload.noticeIds);
+  const html = buildMailHtml({ title: payload.title || 'Eventos', events, audience: 'teachers', notices });
+  await sendMail({ title: payload.title || 'Eventos', html, recipientKey: payload.recipientKey || 'admin', attachments: [mailLogoAttachment()] });
+  await markNoticesSent(payload.noticeIds);
 }
 
 async function createApp() {
@@ -589,7 +633,7 @@ async function createApp() {
       googleAuth: {
         clientId: cfg.googleAuth.clientId || '',
         hasClientSecret: Boolean(cfg.googleAuth.clientSecret),
-        adminEmails: adminEmails(cfg).join(', '),
+        adminEmails: adminEmails(cfg).join('\n'),
         teacherDomain: teacherDomain(cfg)
       }
     });
@@ -620,7 +664,7 @@ async function createApp() {
       googleAuth: {
         clientId: String(req.body.googleAuth?.clientId || '').trim(),
         clientSecret: googleClientSecret || current.googleAuth?.clientSecret || '',
-        adminEmails: String(req.body.googleAuth?.adminEmails || '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean),
+        adminEmails: String(req.body.googleAuth?.adminEmails || '').split(/[,;\n]+/).map((email) => email.trim().toLowerCase()).filter(Boolean),
         teacherDomain: String(req.body.googleAuth?.teacherDomain || 'alcaste-lasfuentes.com').trim().toLowerCase().replace(/^@/, '')
       }
     });
@@ -648,7 +692,7 @@ async function createApp() {
       googleAuth: {
         clientId: config.googleAuth.clientId || '',
         hasClientSecret: Boolean(config.googleAuth.clientSecret),
-        adminEmails: adminEmails(config).join(', '),
+        adminEmails: adminEmails(config).join('\n'),
         teacherDomain: teacherDomain(config)
       }
     });
@@ -748,6 +792,17 @@ async function createApp() {
     res.json(notice);
   });
 
+  app.put('/api/notices/order', requireAdmin, async (req, res) => {
+    const notices = await readJson(noticesPath, []);
+    const byId = new Map(notices.map((notice) => [notice.id, notice]));
+    const ordered = (Array.isArray(req.body.ids) ? req.body.ids.map(String) : [])
+      .map((id) => byId.get(id))
+      .filter(Boolean);
+    const included = new Set(ordered.map((notice) => notice.id));
+    await writeJson(noticesPath, [...ordered, ...notices.filter((notice) => !included.has(notice.id))]);
+    res.json({ ok: true });
+  });
+
   app.put('/api/notices/:id', requireAdmin, async (req, res) => {
     const notices = await readJson(noticesPath, []);
     const index = notices.findIndex((notice) => notice.id === req.params.id);
@@ -779,10 +834,7 @@ async function createApp() {
 
   app.post('/api/mail/send', requireAdmin, async (req, res, next) => {
     try {
-      const events = filterByRange(await fetchEvents(), req.body.from, req.body.to);
-      const notices = await selectedNotices(req.body.noticeIds);
-      const html = buildMailHtml({ title: req.body.title || 'Eventos', events, audience: 'teachers', notices });
-      await sendMail({ title: req.body.title || 'Eventos', html, recipientKey: req.body.recipientKey || 'admin', attachments: [mailLogoAttachment()] });
+      await sendImmediateMail(req.body);
       res.json({ ok: true });
     } catch (error) {
       next(error);
@@ -839,9 +891,12 @@ async function createApp() {
     res.status(500).json({ error: error.message || 'Error interno' });
   });
 
-  for (const item of await readJson(scheduledPath, [])) {
-    if (item.status === 'pending') planScheduledMail(item);
-  }
+  await recoverInterruptedScheduledMails();
+  const scheduler = setInterval(() => {
+    processDueScheduledMails().catch((error) => console.error('Error revisando correos programados:', error));
+  }, 15_000);
+  scheduler.unref();
+  processDueScheduledMails().catch((error) => console.error('Error inicial revisando correos programados:', error));
 
   return app;
 }

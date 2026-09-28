@@ -64,6 +64,8 @@ button.fit-button { width: fit-content; }
 .notice-option small { color: var(--muted); font-weight: 500; white-space: pre-line; }
 .drag-handle { width: 18px; height: 24px; flex: 0 0 18px; cursor: grab; user-select: none; border-radius: 6px; background: radial-gradient(circle, var(--muted) 2px, transparent 2.5px) 0 2px / 8px 8px; }
 .notice-body { color: var(--muted); line-height: 1.55; }
+.notice-sent-at { display: block; margin-top: 6px; color: var(--muted); }
+.error-text { color: #a61946; font-weight: 700; }
 .modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 18px; background: rgba(36, 20, 26, .42); }
 .modal[hidden] { display: none; }
 .modal-card { width: min(680px, 100%); display: grid; gap: 16px; }

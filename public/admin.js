@@ -32,6 +32,11 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
 
+function formatSentAt(value) {
+  if (!value) return 'Nunca enviado';
+  return `Último envío: ${new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))}`;
+}
+
 function formatEventDate(event) {
   if (event.allDay) {
     return new Intl.DateTimeFormat('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit' }).format(new Date(event.start));
@@ -213,6 +218,7 @@ async function loadNotices() {
       <div>
         <h3>${escapeHtml(notice.title)}</h3>
         <div class="notice-body">${notice.body}</div>
+        <small class="notice-sent-at">${formatSentAt(notice.sentAt)}</small>
       </div>
       <div class="actions-inline">
         <button class="secondary" data-edit-notice="${notice.id}">Editar</button>
@@ -341,7 +347,7 @@ async function loadScheduled() {
   document.querySelector('#scheduled').innerHTML = scheduled.sort((a, b) => new Date(b.sendAt) - new Date(a.sendAt)).map((item) => `
     <article class="event">
       <time>${formatDate(item.sendAt)}</time>
-      <div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.from)} a ${escapeHtml(item.to)} · ${escapeHtml(item.recipientKey)}</p></div>
+      <div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.from)} a ${escapeHtml(item.to)} · ${escapeHtml(item.recipientKey)}${item.sentAt ? ` · Enviado: ${formatDate(item.sentAt)}` : ''}</p>${item.error ? `<p class="error-text">${escapeHtml(item.error)}</p>` : ''}</div>
       <span class="badge ${item.status === 'sent' ? '' : 'private'}">${escapeHtml(item.status)}</span>
     </article>
   `).join('') || '<p>No hay envios programados.</p>';
@@ -373,7 +379,12 @@ document.querySelector('#mail-notices').addEventListener('dragstart', (event) =>
   option.classList.add('dragging');
 });
 document.querySelector('#mail-notices').addEventListener('dragend', (event) => {
-  event.target.closest('[data-notice-option]')?.classList.remove('dragging');
+  const option = event.target.closest('[data-notice-option]');
+  option?.classList.remove('dragging');
+  const ids = [...document.querySelectorAll('#mail-notices [data-notice-option]')].map((item) => item.dataset.noticeOption);
+  request('/api/notices/order', { method: 'PUT', body: JSON.stringify({ ids }) })
+    .then(() => { noticesStatus.textContent = 'Orden de avisos guardado'; })
+    .catch((error) => { noticesStatus.textContent = `No se pudo guardar el orden: ${error.message}`; });
 });
 document.querySelector('#mail-notices').addEventListener('dragover', (event) => {
   const dragging = document.querySelector('#mail-notices .dragging');
