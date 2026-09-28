@@ -93,18 +93,16 @@ test('rejects a short SESSION_SECRET with an inline comment without printing its
   assert.doesNotMatch(result.stderr, new RegExp(`${secret}|${comment}`));
 });
 
-test('strips comments from other variables before checking placeholders', (t) => {
-  const placeholder = 'smtp.example.com';
+test('accepts example placeholders for optional Google Calendar and SMTP variables', (t) => {
   const result = validateEnv(
     t,
-    `ADMIN_PASSWORD=12345678\nSESSION_SECRET=01234567890123456789012345678901\n`
-      + `SMTP_HOST=${placeholder} # configured later\nSMTP_USER="usuario-smtp" # configured later\n`
+    'ADMIN_PASSWORD=12345678\nSESSION_SECRET=01234567890123456789012345678901\n'
+      + 'GOOGLE_CALENDAR_ICS_URL=https://calendar.google.com/calendar/u/0?cid=...\n'
+      + 'SMTP_HOST=smtp.example.com\nSMTP_USER=usuario-smtp\nSMTP_PASS=contrasena-smtp\n'
   );
 
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /SMTP_HOST/);
-  assert.match(result.stderr, /SMTP_USER/);
-  assert.doesNotMatch(result.stderr, /smtp\.example\.com|usuario-smtp/);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
 });
 
 test('accepts matching quoted secrets including a literal hash inside the quotes', (t) => {

@@ -94,7 +94,7 @@ validate_production_env() {
         invalid = 1
       }
 
-      if (is_example(value) && !reported_example[key]) {
+      if ((key == "ADMIN_PASSWORD" || key == "SESSION_SECRET") && is_example(value) && !reported_example[key]) {
         printf "%s conserva un valor de ejemplo en .env\n", key > "/dev/stderr"
         reported_example[key] = 1
         invalid = 1

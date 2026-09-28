@@ -59,6 +59,8 @@ PY
 
 Completa en `.env` los demas valores de la plantilla antes de iniciar la app.
 
+Antes de volver a desplegar, reemplaza `SESSION_SECRET` en `/opt/proyectos/calendario/.env` por un secreto aleatorio de 32 bytes (64 caracteres hexadecimales) y mantén ese archivo con permisos `0600`. Rotar el secreto invalida las sesiones actuales. No imprimas el valor ni lo guardes en Git.
+
 ## Google Calendar
 
 La app lee el calendario mediante una URL de Google Calendar. Lo mas fiable es usar la direccion publica o secreta en formato iCal. Tambien acepta una URL con parametro `cid` o una URL de insercion con parametro `src`, por ejemplo `https://calendar.google.com/calendar/embed?src=...`, siempre que Google permita convertirla a iCal publico.
