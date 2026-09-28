@@ -1,57 +1,271 @@
 name: Deploy production
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
+  workflow_dispatch:
 
-concurrency:
-  group: production-${{ github.repository }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
-  deploy:
-    name: Deploy to production
-    runs-on: [self-hosted, opencode, docker, production, deploy]
+  quality:
+    name: Build and validate
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy by local runner
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test environment validation
+        run: npm test
+
+      - name: Build validation
+        run: npm run build
+
+  deploy:
+    name: Deploy to production
+    needs: quality
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: production-${{ github.repository }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Validate production target
+        env:
+          PROD_HOST: ${{ vars.PROD_HOST }}
+          PROD_USER: ${{ vars.PROD_USER }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
 
-          PROJECT_NAME="calendario"
-          PROD_HOST="192.168.35.27"
-          PROD_PATH="/opt/proyectos/calendario"
-          REPO_SSH="git@github-gecoas-prod:gecoas/calendario.git"
+          : "${PROD_HOST:?Falta la variable PROD_HOST}"
+          : "${PROD_USER:?Falta la variable PROD_USER}"
+          : "${GITHUB_SHA:?Falta GITHUB_SHA}"
 
-          ssh deploy@$PROD_HOST "
+          if [[ "$PROD_HOST" != "100.86.174.92" ]]; then
+            echo "PROD_HOST no coincide con el servidor Tailscale esperado" >&2
+            exit 1
+          fi
+          if [[ "$PROD_USER" != "deploy" ]]; then
+            echo "PROD_USER no coincide con el usuario de despliegue esperado" >&2
+            exit 1
+          fi
+          if [[ ! "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "GITHUB_SHA no tiene formato de commit valido" >&2
+            exit 1
+          fi
+
+      - name: Connect to production network
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          ping: ${{ vars.PROD_HOST }}
+
+      - name: Deploy by SSH
+        env:
+          PROD_HOST: ${{ vars.PROD_HOST }}
+          PROD_USER: ${{ vars.PROD_USER }}
+          PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          : "${PROD_HOST:?Falta la variable PROD_HOST}"
+          : "${PROD_USER:?Falta la variable PROD_USER}"
+          : "${PROD_SSH_KEY:?Falta el secreto PROD_SSH_KEY}"
+          : "${GITHUB_SHA:?Falta GITHUB_SHA}"
+
+          if [[ "$PROD_HOST" != "100.86.174.92" ]]; then
+            echo "PROD_HOST no coincide con el servidor Tailscale esperado" >&2
+            exit 1
+          fi
+          if [[ "$PROD_USER" != "deploy" ]]; then
+            echo "PROD_USER no coincide con el usuario de despliegue esperado" >&2
+            exit 1
+          fi
+          if [[ ! "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "GITHUB_SHA no tiene formato de commit valido" >&2
+            exit 1
+          fi
+
+          KNOWN_HOSTS="$GITHUB_WORKSPACE/.github/production_known_hosts"
+          SSH_KEY="$(mktemp)"
+          cleanup() {
+            rm -f -- "$SSH_KEY" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          test -r "$KNOWN_HOSTS" || { echo "Falta la clave de host versionada" >&2; exit 1; }
+          grep -Eq '^100\.86\.174\.92[[:space:]]+ssh-ed25519[[:space:]]+[A-Za-z0-9+/]+={0,2}$' "$KNOWN_HOSTS" || {
+            echo "La clave ed25519 de producción no esta en el formato esperado" >&2
+            exit 1
+          }
+          ssh-keygen -F "$PROD_HOST" -f "$KNOWN_HOSTS" >/dev/null 2>&1 || {
+            echo "No se encontro la clave de host de producción" >&2
+            exit 1
+          }
+
+          printf '%s\n' "$PROD_SSH_KEY" > "$SSH_KEY"
+          chmod 600 "$SSH_KEY"
+          if ! ssh-keygen -y -P '' -f "$SSH_KEY" >/dev/null 2>&1; then
+            echo "PROD_SSH_KEY no es una clave privada SSH valida sin passphrase" >&2
+            exit 1
+          fi
+
+          SSH_OPTIONS=(
+            -F /dev/null
+            -i "$SSH_KEY"
+            -o "Port=22"
+            -o "StrictHostKeyChecking=yes"
+            -o "UserKnownHostsFile=$KNOWN_HOSTS"
+            -o "GlobalKnownHostsFile=/dev/null"
+            -o "IdentitiesOnly=yes"
+            -o "BatchMode=yes"
+            -o "PasswordAuthentication=no"
+            -o "KbdInteractiveAuthentication=no"
+            -o "PubkeyAuthentication=yes"
+            -o "ForwardAgent=no"
+            -o "ClearAllForwardings=yes"
+            -o "UpdateHostKeys=no"
+            -o "HostKeyAlgorithms=ssh-ed25519"
+            -o "ConnectTimeout=10"
+          )
+
+          ssh -T "${SSH_OPTIONS[@]}" "$PROD_USER@$PROD_HOST" true
+
+          REMOTE_COMMAND="GITHUB_SHA='$GITHUB_SHA' flock -w 120 /tmp/calendario-deploy.lock bash -s"
+          {
+            cat scripts/validate-production-env.sh
+            cat scripts/assert-deploy-paths.sh
+            cat <<'REMOTE'
             set -euo pipefail
 
-            mkdir -p '$PROD_PATH'
-            cd '$PROD_PATH'
+            PROD_PATH="/opt/proyectos/calendario"
+            REPO_SSH="git@github-gecoas-prod:gecoas/calendario.git"
 
-            if [ ! -d .git ]; then
-              echo 'No existe .git en producción. Inicializando repo...'
-              git init
-              git remote add origin '$REPO_SSH' 2>/dev/null || git remote set-url origin '$REPO_SSH'
+            if [[ ! -d "$PROD_PATH" ]]; then
+              echo 'Falta el directorio de producción con el .env persistente' >&2
+              exit 1
+            fi
+            cd "$PROD_PATH"
+
+            validate_production_env .env
+            chmod 600 .env
+
+            if [[ ! -d .git ]]; then
+              git init --quiet
+            fi
+            if git remote get-url origin >/dev/null 2>&1; then
+              git remote set-url origin "$REPO_SSH"
             else
-              git remote set-url origin '$REPO_SSH'
+              git remote add origin "$REPO_SSH"
             fi
 
-            git fetch origin main
-            git reset --hard origin/main
+            if [[ ! "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo 'GITHUB_SHA no tiene formato de commit valido en el servidor' >&2
+              exit 1
+            fi
+            assert_no_protected_tracked_paths current
+            git fetch --quiet origin "$GITHUB_SHA"
+            assert_no_protected_tracked_paths target "$GITHUB_SHA"
+            git checkout --detach --force "$GITHUB_SHA"
+            if [[ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]]; then
+              echo 'El checkout no coincide con GITHUB_SHA' >&2
+              exit 1
+            fi
 
-            # Limpia restos antiguos del despliegue, pero conserva .env y datos compartidos.
-            git clean -fd -e .env -e shared/ -e 'shared/**'
+            git clean -fd -e .env -e data/ -e 'data/**'
 
-            if [ ! -f .env ] && [ -f .env.example ]; then
-              cp .env.example .env
+            COMPOSE_CONFIG="$(mktemp)" || {
+              echo 'No se pudo preparar la validación segura de Compose' >&2
+              exit 1
+            }
+            trap 'rm -f -- "$COMPOSE_CONFIG" >/dev/null 2>&1 || true' EXIT
+            if ! chmod 600 "$COMPOSE_CONFIG" >/dev/null 2>&1; then
+              echo 'No se pudo proteger la configuración temporal de Compose' >&2
+              exit 1
+            fi
+            if ! docker compose -f docker-compose.prod.yml config --format json >"$COMPOSE_CONFIG" 2>/dev/null; then
+              echo 'No se pudo validar la configuración de Compose' >&2
+              exit 1
+            fi
+            if ! node scripts/validate-effective-compose-secrets.js "$COMPOSE_CONFIG"; then
+              echo 'Los secretos efectivos de Compose no cumplen los requisitos' >&2
+              exit 1
             fi
 
             docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
-            docker image prune -f
 
-            echo 'Deploy completado correctamente'
+            smoke_deadline=$((SECONDS + 60))
+            smoke_ok=false
+            while (( SECONDS < smoke_deadline )); do
+              remaining=$((smoke_deadline - SECONDS))
+              if curl --fail --silent --show-error --max-time "$remaining" http://127.0.0.1:8099/api/config \
+                | docker compose -f docker-compose.prod.yml exec -T calendario node -e '
+                    let body = "";
+                    process.stdin.setEncoding("utf8");
+                    process.stdin.on("data", (chunk) => { body += chunk; });
+                    process.stdin.on("end", () => {
+                      let payload;
+                      try {
+                        payload = JSON.parse(body);
+                      } catch (_error) {
+                        process.exitCode = 1;
+                        return;
+                      }
+                      const allowedKeys = ["schoolName", "schoolYear", "publicBaseUrl", "googleAuthEnabled"];
+                      const valid = payload !== null
+                        && typeof payload === "object"
+                        && !Array.isArray(payload)
+                        && Object.keys(payload).every((key) => allowedKeys.includes(key))
+                        && typeof payload.schoolName === "string"
+                        && payload.schoolName.trim().length > 0
+                        && typeof payload.schoolYear === "string"
+                        && payload.schoolYear.trim().length > 0
+                        && typeof payload.googleAuthEnabled === "boolean"
+                        && (!Object.hasOwn(payload, "publicBaseUrl") || typeof payload.publicBaseUrl === "string");
+                      if (!valid) process.exitCode = 1;
+                    });
+                  ' >/dev/null 2>&1; then
+                smoke_ok=true
+                break
+              fi
+              if (( SECONDS < smoke_deadline )); then
+                sleep 2
+              fi
+            done
+
+            if [[ "$smoke_ok" != true ]]; then
+              echo 'La comprobación segura de /api/config no tuvo éxito' >&2
+              docker compose -f docker-compose.prod.yml ps
+              exit 1
+            fi
+
             docker compose -f docker-compose.prod.yml ps
-          "
+            echo "Deploy completado correctamente para $GITHUB_SHA"
+          REMOTE
+          } | ssh "${SSH_OPTIONS[@]}" "$PROD_USER@$PROD_HOST" "$REMOTE_COMMAND"

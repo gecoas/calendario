@@ -29,6 +29,36 @@ No subas secretos reales al repo. Para produccion usa variables de entorno como 
 - `SMTP_USER`
 - `SMTP_PASS`
 
+Para una primera instalacion, este comando crea `.env` desde la plantilla con un `SESSION_SECRET` CSPRNG de 32 bytes (64 caracteres hexadecimales). El secreto se escribe directamente al archivo: no aparece en la salida ni se pasa como argumento de shell. El archivo se crea con permisos `0600` y el comando no sobrescribe un `.env` existente:
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+import os
+import re
+import secrets
+
+env_path = Path(".env")
+if env_path.exists():
+    raise SystemExit(".env ya existe; no se sobrescribio.")
+
+template = Path(".env.example").read_text(encoding="utf-8")
+contents, replacements = re.subn(
+    r"(?m)^SESSION_SECRET=.*$",
+    lambda _match: "SESSION_SECRET=" + secrets.token_hex(32),
+    template,
+)
+if replacements != 1:
+    raise SystemExit("No se pudo localizar SESSION_SECRET en .env.example.")
+
+descriptor = os.open(env_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(descriptor, "w", encoding="utf-8") as env_file:
+    env_file.write(contents)
+PY
+```
+
+Completa en `.env` los demas valores de la plantilla antes de iniciar la app.
+
 ## Google Calendar
 
 La app lee el calendario mediante una URL de Google Calendar. Lo mas fiable es usar la direccion publica o secreta en formato iCal. Tambien acepta una URL con parametro `cid` o una URL de insercion con parametro `src`, por ejemplo `https://calendar.google.com/calendar/embed?src=...`, siempre que Google permita convertirla a iCal publico.
