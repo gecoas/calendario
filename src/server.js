@@ -105,6 +105,7 @@ async function loadConfig(applyEnv = true) {
     config.mail.smtp.user = runtimeConfig.mail?.smtp?.user || process.env.SMTP_USER || config.mail.smtp.user;
     config.mail.smtp.pass = runtimeConfig.mail?.smtp?.pass || process.env.SMTP_PASS || config.mail.smtp.pass;
     config.googleCalendar.icsUrl = runtimeConfig.googleCalendar?.icsUrl || process.env.GOOGLE_CALENDAR_ICS_URL || config.googleCalendar.icsUrl;
+    config.googleCalendar.teacherIcsUrl = runtimeConfig.googleCalendar?.teacherIcsUrl ?? process.env.GOOGLE_TEACHER_CALENDAR_ICS_URL ?? config.googleCalendar.teacherIcsUrl ?? '';
     config.googleAuth.clientId = runtimeConfig.googleAuth?.clientId || process.env.GOOGLE_AUTH_CLIENT_ID || config.googleAuth.clientId;
     config.googleAuth.clientSecret = runtimeConfig.googleAuth?.clientSecret || process.env.GOOGLE_AUTH_CLIENT_SECRET || config.googleAuth.clientSecret;
     config.googleAuth.adminEmails = runtimeConfig.googleAuth?.adminEmails || config.googleAuth.adminEmails || [];
@@ -171,39 +172,48 @@ function eventId(event) {
   return crypto.createHash('sha1').update(`${event.uid || ''}:${event.start?.toISOString() || ''}:${event.summary || ''}`).digest('hex');
 }
 
-function normalizeEvent(raw, visibleMap) {
-  const id = eventId(raw);
+function normalizeEvent(raw, visibleMap, calendarSource = 'main') {
+  const originalId = eventId(raw);
+  const id = calendarSource === 'teachers' ? crypto.createHash('sha1').update(`teachers:${originalId}`).digest('hex') : originalId;
   const allDay = raw.datetype === 'date' || raw.start?.dateOnly === true;
   return {
     id,
+    calendarSource,
     title: raw.summary || 'Sin titulo',
     description: raw.description || '',
     location: raw.location || '',
     start: raw.start ? raw.start.toISOString() : null,
     end: raw.end ? raw.end.toISOString() : null,
     allDay,
-    visibleToFamilies: Boolean(visibleMap[id])
+    visibleToFamilies: calendarSource === 'main' && Boolean(visibleMap[id])
   };
+}
+
+async function fetchCalendarEvents(url, visibleMap, calendarSource) {
+  const calendarUrl = normalizeCalendarUrl(url);
+  if (!calendarUrl) return [];
+  const response = await fetch(calendarUrl);
+  if (!response.ok) {
+    throw new Error(`El calendario ${calendarSource === 'teachers' ? 'solo profesores' : 'principal'} no entrega un iCal valido (${response.status}).`);
+  }
+  const calendarText = await response.text();
+  if (!calendarText.includes('BEGIN:VCALENDAR')) {
+    throw new Error(`La URL del calendario ${calendarSource === 'teachers' ? 'solo profesores' : 'principal'} no devuelve un iCal valido.`);
+  }
+  const parsed = await ical.async.parseICS(calendarText);
+  return Object.values(parsed)
+    .filter((item) => item.type === 'VEVENT' && item.start)
+    .map((item) => normalizeEvent(item, visibleMap, calendarSource));
 }
 
 async function fetchEvents() {
   const config = await loadConfig();
   const visibleMap = await readJson(visibilityPath, {});
-  const calendarUrl = normalizeCalendarUrl(config.googleCalendar.icsUrl);
-  if (!calendarUrl) return [];
-  const response = await fetch(calendarUrl);
-  if (!response.ok) {
-    throw new Error(`Google Calendar no entrega un iCal valido (${response.status}). Usa la direccion publica o secreta en formato iCal del calendario.`);
-  }
-  const calendarText = await response.text();
-  if (!calendarText.includes('BEGIN:VCALENDAR')) {
-    throw new Error('La URL configurada no devuelve un calendario iCal valido. Usa la direccion publica o secreta en formato iCal del calendario.');
-  }
-  const parsed = await ical.async.parseICS(calendarText);
-  return Object.values(parsed)
-    .filter((item) => item.type === 'VEVENT' && item.start)
-    .map((item) => normalizeEvent(item, visibleMap))
-    .sort((a, b) => new Date(a.start) - new Date(b.start));
+  const [mainEvents, teacherEvents] = await Promise.all([
+    fetchCalendarEvents(config.googleCalendar.icsUrl, visibleMap, 'main'),
+    fetchCalendarEvents(config.googleCalendar.teacherIcsUrl, visibleMap, 'teachers')
+  ]);
+  return [...mainEvents, ...teacherEvents].sort((a, b) => new Date(a.start) - new Date(b.start));
 }
 
 function filterByRange(events, from, to) {
@@ -397,11 +407,14 @@ function buildMailHtml({ title, events, audience, notices = [], logoSrc = 'cid:l
     const day = formatMailDay(event);
     const time = formatMailTime(event);
     const showDay = day !== previousDay;
+    const teacherOnly = event.calendarSource === 'teachers';
+    const eventBackground = teacherOnly ? 'background:#ffeb8a;' : '';
+    const eventColor = teacherOnly ? '#a61946' : '#24141a';
     previousDay = day;
     return `
       <tr>
-        <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:#a61946;font-weight:700;white-space:nowrap;vertical-align:top;">${showDay ? escapeHtml(day) : ''}</td>
-        <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:#24141a;font-weight:700;vertical-align:top;">${time ? `<span style="color:#a61946;margin-right:8px;">${escapeHtml(time)}</span>` : ''}${escapeHtml(event.title)}${event.location ? `<div style="font-weight:400;color:#655761;margin-top:4px;">${escapeHtml(event.location)}</div>` : ''}</td>
+        <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:#a61946;font-weight:700;white-space:nowrap;vertical-align:top;${eventBackground}">${showDay ? escapeHtml(day) : ''}</td>
+        <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:${eventColor};font-weight:700;vertical-align:top;${eventBackground}">${time ? `<span style="color:#a61946;margin-right:8px;">${escapeHtml(time)}</span>` : ''}${escapeHtml(event.title)}${event.location ? `<div style="font-weight:400;color:#655761;margin-top:4px;">${escapeHtml(event.location)}</div>` : ''}</td>
       </tr>`;
   }).join('');
   return `<!doctype html><html><body style="margin:0;background:#f7f2ee;font-family:Arial,Helvetica,sans-serif;color:#24141a;"><div style="max-width:760px;margin:0 auto;padding:28px;"><div style="background:#fff;border:1px solid #eadde2;border-radius:18px;overflow:hidden;"><div style="padding:18px 28px;background:#a61946;color:#fff;"><table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tr><td style="width:54px;vertical-align:middle;padding:0 16px 0 0;"><img src="${escapeHtml(logoSrc)}" alt="Logo colegio" width="46" height="46" style="display:block;width:46px;height:46px;object-fit:contain;"></td><td style="vertical-align:middle;"><h1 style="margin:0;font-size:26px;line-height:1.15;">${escapeHtml(title)}</h1>${intro ? `<p style="margin:8px 0 0;color:#f6d7e1;">${intro}</p>` : ''}</td></tr></table></div>${noticeItems ? `<div style="padding:20px 20px 8px;">${noticeItems}</div>` : ''}<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">${items || '<tr><td style="padding:20px;">No hay eventos en el rango seleccionado.</td></tr>'}</table></div></div></body></html>`;
@@ -494,7 +507,11 @@ function drawPdfMonth(doc, monthDate, events) {
       if (!label) return;
       const textHeight = doc.heightOfString(label, { width: cellWidth - 8, lineGap: 0 });
       if (eventY + textHeight > y + cellHeight - 3) return;
-      doc.fillColor('#24141a').fontSize(6.5).text(label, x + 4, eventY, { width: cellWidth - 8, lineGap: 0 });
+      if (event.calendarSource === 'teachers') {
+        doc.roundedRect(x + 2, eventY - 1, cellWidth - 4, textHeight + 3, 2).fill('#ffeb8a');
+        doc.fillColor('#a61946');
+      } else doc.fillColor('#24141a');
+      doc.fontSize(6.5).text(label, x + 4, eventY, { width: cellWidth - 8, lineGap: 0 });
       eventY += textHeight + 2;
     });
     index += 1;
@@ -628,7 +645,9 @@ async function createApp() {
       schoolYear: cfg.schoolYear || '2026-2027',
       googleCalendar: {
         icsUrl: cfg.googleCalendar.icsUrl || '',
-        resolvedIcsUrl: normalizeCalendarUrl(cfg.googleCalendar.icsUrl)
+        resolvedIcsUrl: normalizeCalendarUrl(cfg.googleCalendar.icsUrl),
+        teacherIcsUrl: cfg.googleCalendar.teacherIcsUrl || '',
+        resolvedTeacherIcsUrl: normalizeCalendarUrl(cfg.googleCalendar.teacherIcsUrl)
       },
       mail: {
         from: cfg.mail.from || '',
@@ -655,12 +674,13 @@ async function createApp() {
 
   app.put('/api/admin/config', requireAdmin, async (req, res) => {
     const icsUrl = String(req.body.googleCalendar?.icsUrl || '').trim();
+    const teacherIcsUrl = String(req.body.googleCalendar?.teacherIcsUrl || '').trim();
     const current = await loadConfig(false);
     const smtpPass = String(req.body.mail?.smtp?.pass || '');
     const googleClientSecret = String(req.body.googleAuth?.clientSecret || '');
     const config = await saveConfig({
       schoolYear: String(req.body.schoolYear || '2026-2027').trim(),
-      googleCalendar: { icsUrl },
+      googleCalendar: { icsUrl, teacherIcsUrl },
       mail: {
         from: String(req.body.mail?.from || '').trim(),
         recipients: {
@@ -687,7 +707,9 @@ async function createApp() {
       schoolYear: config.schoolYear || '2026-2027',
       googleCalendar: {
         icsUrl: config.googleCalendar.icsUrl || '',
-        resolvedIcsUrl: normalizeCalendarUrl(config.googleCalendar.icsUrl)
+        resolvedIcsUrl: normalizeCalendarUrl(config.googleCalendar.icsUrl),
+        teacherIcsUrl: config.googleCalendar.teacherIcsUrl || '',
+        resolvedTeacherIcsUrl: normalizeCalendarUrl(config.googleCalendar.teacherIcsUrl)
       },
       mail: {
         from: config.mail.from || '',
@@ -786,6 +808,12 @@ async function createApp() {
   });
 
   app.put('/api/events/:id/visibility', requireAdmin, async (req, res) => {
+    if (req.body.visibleToFamilies) {
+      const events = await fetchEvents();
+      if (events.some((event) => event.id === req.params.id && event.calendarSource === 'teachers')) {
+        return res.status(400).json({ error: 'Los eventos del calendario para profesores no se pueden mostrar a las familias' });
+      }
+    }
     const visibleMap = await readJson(visibilityPath, {});
     if (req.body.visibleToFamilies) visibleMap[req.params.id] = true;
     else delete visibleMap[req.params.id];

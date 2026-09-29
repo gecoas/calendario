@@ -4,6 +4,7 @@
   "publicBaseUrl": "https://calendario.gecoas.es",
   "googleCalendar": {
     "icsUrl": "https://calendar.google.com/calendar/u/0?cid=Y18yYmFmM2M4NzIzMThmNTMwODhjNDhiZDM4ZjUwNGVhNTE2ZjM0ODQ5YzU4NmYzMWRkYmUwMzNiMTExYjRjMjMyQGdyb3VwLmNhbGVuZGFyLmdvb2dsZS5jb20",
+    "teacherIcsUrl": "",
     "timezone": "Europe/Madrid"
   },
   "admin": {

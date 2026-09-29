@@ -128,6 +128,8 @@ async function loadAdminConfig() {
   document.querySelector('#school-year').value = config.schoolYear || '2026-2027';
   document.querySelector('#calendar-url').value = config.googleCalendar.icsUrl || '';
   document.querySelector('#calendar-resolved-url').value = config.googleCalendar.resolvedIcsUrl || '';
+  document.querySelector('#teacher-calendar-url').value = config.googleCalendar.teacherIcsUrl || '';
+  document.querySelector('#teacher-calendar-resolved-url').value = config.googleCalendar.resolvedTeacherIcsUrl || '';
   document.querySelector('#mail-from-address').value = config.mail.from || '';
   document.querySelector('#mail-admin-recipient').value = config.mail.recipients.admin || '';
   document.querySelector('#mail-teachers-recipient').value = config.mail.recipients.teachers || '';
@@ -149,7 +151,10 @@ async function saveSettings() {
   const config = await request('/api/admin/config', {
     method: 'PUT',
     body: JSON.stringify({
-      googleCalendar: { icsUrl: document.querySelector('#calendar-url').value },
+      googleCalendar: {
+        icsUrl: document.querySelector('#calendar-url').value,
+        teacherIcsUrl: document.querySelector('#teacher-calendar-url').value
+      },
       schoolYear: document.querySelector('#school-year').value,
       mail: {
         from: document.querySelector('#mail-from-address').value,
@@ -174,6 +179,7 @@ async function saveSettings() {
     })
   });
   document.querySelector('#calendar-resolved-url').value = config.googleCalendar.resolvedIcsUrl || '';
+  document.querySelector('#teacher-calendar-resolved-url').value = config.googleCalendar.resolvedTeacherIcsUrl || '';
   document.querySelector('#smtp-pass').value = '';
   document.querySelector('#google-client-secret').value = '';
   await loadAdminConfig();
@@ -187,16 +193,15 @@ async function loadEvents() {
   const events = await request(`/api/events?${params}`);
   eventsStatus.textContent = `${events.length} eventos encontrados`;
   document.querySelector('#admin-events').innerHTML = events.map((event) => `
-    <article class="event">
+    <article class="event ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}">
       <time>${formatEventDate(event)}</time>
       <div>
         <h3>${escapeHtml(event.title)}</h3>
         ${event.location ? `<p>${escapeHtml(event.location)}</p>` : ''}
       </div>
-      <label>
-        <span class="badge ${event.visibleToFamilies ? '' : 'private'}">${event.visibleToFamilies ? 'Familias' : 'Solo profesores'}</span>
-        <input type="checkbox" data-event-id="${event.id}" ${event.visibleToFamilies ? 'checked' : ''}>
-      </label>
+      ${event.calendarSource === 'teachers'
+        ? '<span class="badge teacher-only-badge">Solo profesores</span>'
+        : `<label><span class="badge ${event.visibleToFamilies ? '' : 'private'}">${event.visibleToFamilies ? 'Familias' : 'Solo profesores'}</span><input type="checkbox" data-event-id="${event.id}" ${event.visibleToFamilies ? 'checked' : ''}></label>`}
     </article>
   `).join('') || '<p>No hay eventos en el rango seleccionado. Revisa la URL ICS del calendario de Google.</p>';
 }

@@ -92,7 +92,7 @@ function renderCalendar(events, range) {
       <div class="month-cell ${outside ? 'outside' : ''}">
         <div class="day-number">${day.getDate()}</div>
         <div class="day-events">
-          ${dayEvents.map((event) => `<div class="month-event" title="${escapeHtml(event.title)}">${eventTime(event) ? `${eventTime(event)} ` : ''}${escapeHtml(event.title)}</div>`).join('')}
+          ${dayEvents.map((event) => `<div class="month-event ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" title="${escapeHtml(event.title)}">${eventTime(event) ? `${eventTime(event)} ` : ''}${escapeHtml(event.title)}</div>`).join('')}
         </div>
       </div>
     `);
