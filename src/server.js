@@ -225,6 +225,10 @@ function filterByRange(events, from, to) {
   });
 }
 
+function excludeTeachersOnlyCalendarEvents(events) {
+  return events.filter((event) => event.calendarSource !== 'teachers');
+}
+
 function formatDate(value) {
   return new Intl.DateTimeFormat('es-ES', {
     timeZone: madridTimeZone,
@@ -557,7 +561,7 @@ async function processDueScheduledMails() {
     for (const item of dueItems) {
       await updateScheduleStatus(item.id, 'sending');
       try {
-        const events = filterByRange(await fetchEvents(), item.from, item.to);
+        const events = excludeTeachersOnlyCalendarEvents(filterByRange(await fetchEvents(), item.from, item.to));
         const notices = await selectedNotices(item.noticeIds);
         const html = buildMailHtml({ title: item.title, events, audience: item.audience, notices });
         await sendMail({ title: item.title, html, recipientKey: item.recipientKey, attachments: [mailLogoAttachment()] });
@@ -606,7 +610,7 @@ async function updateScheduleStatus(id, status, error, sentAt) {
 }
 
 async function sendImmediateMail(payload) {
-  const events = filterByRange(await fetchEvents(), payload.from, payload.to);
+  const events = excludeTeachersOnlyCalendarEvents(filterByRange(await fetchEvents(), payload.from, payload.to));
   const notices = await selectedNotices(payload.noticeIds);
   const html = buildMailHtml({ title: payload.title || 'Eventos', events, audience: 'teachers', notices });
   await sendMail({ title: payload.title || 'Eventos', html, recipientKey: payload.recipientKey || 'admin', attachments: [mailLogoAttachment()] });
@@ -865,7 +869,7 @@ async function createApp() {
   app.post('/api/mail/preview', requireAdmin, async (req, res, next) => {
     try {
       const cfg = await loadConfig();
-      const events = filterByRange(await fetchEvents(), req.body.from, req.body.to);
+      const events = excludeTeachersOnlyCalendarEvents(filterByRange(await fetchEvents(), req.body.from, req.body.to));
       const filtered = req.body.audience === 'families' ? events.filter((event) => event.visibleToFamilies) : events;
       const notices = await selectedNotices(req.body.noticeIds);
       res.json({ html: buildMailHtml({ title: req.body.title || 'Eventos', events: filtered, audience: req.body.audience, notices, logoSrc: publicMailLogoUrl(cfg) }), events: filtered, notices });
@@ -918,7 +922,7 @@ async function createApp() {
   app.get('/api/calendar/pdf', requireCalendarAccess, async (req, res, next) => {
     try {
       const events = filterByRange(await fetchEvents(), req.query.from, req.query.to);
-      const filtered = req.query.audience === 'families' ? events.filter((event) => event.visibleToFamilies) : events;
+      const filtered = req.query.audience === 'families' ? events.filter((event) => event.visibleToFamilies) : excludeTeachersOnlyCalendarEvents(events);
       const cfg = await loadConfig();
       const pdf = await createFamilyPdf(filtered, monthTitle(req.query.month, cfg.schoolYear), req.query.from, req.query.to);
       res.setHeader('Content-Type', 'application/pdf');
