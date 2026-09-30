@@ -217,12 +217,31 @@ async function fetchEvents() {
 }
 
 function filterByRange(events, from, to) {
-  const start = from ? new Date(`${from}T00:00:00`) : new Date('1970-01-01T00:00:00');
-  const end = to ? new Date(`${to}T23:59:59`) : new Date('2999-12-31T23:59:59');
+  const start = from ? madridDateBoundary(from) : new Date('1970-01-01T00:00:00Z');
+  const end = to ? new Date(madridDateBoundary(addDateDays(to, 1)).getTime() - 1) : new Date('2999-12-31T23:59:59Z');
   return events.filter((event) => {
     const eventStart = new Date(event.start);
     return eventStart >= start && eventStart <= end;
   });
+}
+
+function madridDateBoundary(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return new Date('Invalid Date');
+  const [, year, month, day] = match;
+  const approximate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  const offset = new Intl.DateTimeFormat('en-GB', { timeZone: madridTimeZone, timeZoneName: 'longOffset' })
+    .formatToParts(approximate).find((part) => part.type === 'timeZoneName')?.value || 'GMT+00:00';
+  const [, sign, hours = '00', minutes = '00'] = offset.match(/^GMT([+-])(\d{2}):(\d{2})$/) || [];
+  const offsetMinutes = sign ? (Number(hours) * 60 + Number(minutes)) * (sign === '-' ? -1 : 1) : 0;
+  return new Date(approximate.getTime() - offsetMinutes * 60_000);
+}
+
+function addDateDays(value, days) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + days));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 }
 
 function excludeTeachersOnlyCalendarEvents(events) {
@@ -622,6 +641,18 @@ async function createApp() {
   const app = express();
   app.set('trust proxy', 1);
   app.use(express.json({ limit: '1mb' }));
+  app.use('/api/events', (req, res, next) => {
+    const origin = req.get('origin');
+    if (origin !== 'https://intranet.gecoas.es') return next();
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Access-Control-Allow-Credentials', 'true');
+    res.vary('Origin');
+    if (req.method === 'OPTIONS' && req.path === '/') {
+      res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      return res.status(204).end();
+    }
+    next();
+  });
   app.use(session({
     secret: config.sessionSecret,
     resave: false,
