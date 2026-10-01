@@ -126,6 +126,23 @@ function requireCalendarAccess(req, res, next) {
   return res.status(401).json({ error: 'No autorizado' });
 }
 
+function intranetCors(allowedMethod) {
+  return (req, res, next) => {
+    const origin = req.get('origin');
+    if (origin !== 'https://intranet.gecoas.es' || req.path !== '/') return next();
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Access-Control-Allow-Credentials', 'true');
+    res.vary('Origin');
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Methods', `${allowedMethod}, OPTIONS`);
+      if (allowedMethod === 'POST') res.set('Access-Control-Allow-Headers', 'Content-Type');
+      return res.status(204).end();
+    }
+    if (req.method === allowedMethod) return next();
+    return next();
+  };
+}
+
 function appBaseUrl(req, config) {
   if (config.publicBaseUrl) return String(config.publicBaseUrl).replace(/\/$/, '');
   return `${req.protocol}://${req.get('host')}`;
@@ -641,18 +658,8 @@ async function createApp() {
   const app = express();
   app.set('trust proxy', 1);
   app.use(express.json({ limit: '1mb' }));
-  app.use('/api/events', (req, res, next) => {
-    const origin = req.get('origin');
-    if (origin !== 'https://intranet.gecoas.es') return next();
-    res.set('Access-Control-Allow-Origin', origin);
-    res.set('Access-Control-Allow-Credentials', 'true');
-    res.vary('Origin');
-    if (req.method === 'OPTIONS' && req.path === '/') {
-      res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-      return res.status(204).end();
-    }
-    next();
-  });
+  app.use('/api/events', intranetCors('GET'));
+  app.use('/api/auth/intranet-sso', intranetCors('POST'));
   app.use(session({
     secret: config.sessionSecret,
     resave: false,
@@ -831,6 +838,38 @@ async function createApp() {
     }
     req.session.teacher = { email };
     return res.json({ ok: true });
+  });
+
+  app.post('/api/auth/intranet-sso', async (req, res, next) => {
+    try {
+      const assertion = String(req.body?.assertion || '');
+      if (!assertion) return res.status(401).json({ error: 'Falta la afirmación SSO' });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      let verification;
+      try {
+        verification = await fetch('https://intranet.gecoas.es/api/auth/calendar-sso/verify', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${assertion}` },
+          signal: controller.signal,
+          cache: 'no-store'
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+      const identity = await verification.json().catch(() => ({}));
+      if (!verification.ok || identity.role !== 'profesor' || !identity.email) return res.status(401).json({ error: 'No se pudo verificar la sesión de la intranet' });
+      req.session.regenerate((error) => {
+        if (error) return next(error);
+        req.session.teacher = { email: String(identity.email).trim().toLowerCase() };
+        req.session.save((saveError) => {
+          if (saveError) return next(saveError);
+          res.set('Cache-Control', 'no-store').json({ ok: true });
+        });
+      });
+    } catch (error) {
+      next(error);
+    }
   });
 
   app.get('/api/events', requireCalendarAccess, async (req, res, next) => {

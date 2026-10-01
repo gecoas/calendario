@@ -17,6 +17,23 @@ test('permite a la intranet consultar eventos con credenciales y solo desde su o
   assert.equal(preflight.headers.get('access-control-allow-origin'), 'https://intranet.gecoas.es');
   assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true');
 
+  const ssoPreflight = await fetch(`${baseUrl}/api/auth/intranet-sso`, {
+    method: 'OPTIONS',
+    headers: { Origin: 'https://intranet.gecoas.es', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' }
+  });
+  assert.equal(ssoPreflight.status, 204);
+  assert.equal(ssoPreflight.headers.get('access-control-allow-origin'), 'https://intranet.gecoas.es');
+  assert.equal(ssoPreflight.headers.get('access-control-allow-credentials'), 'true');
+  assert.match(ssoPreflight.headers.get('access-control-allow-methods') || '', /POST/);
+
+  const emptySso = await fetch(`${baseUrl}/api/auth/intranet-sso`, {
+    method: 'POST',
+    headers: { Origin: 'https://intranet.gecoas.es', 'Content-Type': 'application/json' },
+    body: JSON.stringify({})
+  });
+  assert.equal(emptySso.status, 401);
+  assert.equal(emptySso.headers.get('access-control-allow-origin'), 'https://intranet.gecoas.es');
+
   const teacherEvents = await fetch(`${baseUrl}/api/events?audience=teachers`, {
     headers: { Origin: 'https://intranet.gecoas.es' }
   });
