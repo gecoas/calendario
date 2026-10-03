@@ -4,6 +4,7 @@ const monthTitleEl = document.querySelector('#month-title');
 const previousButton = document.querySelector('#previous-month');
 const nextButton = document.querySelector('#next-month');
 const downloadPdfButton = document.querySelector('#download-month-pdf');
+const addGoogleCalendarButton = document.querySelector('#add-google-calendar');
 const audience = document.body.dataset.audience || 'families';
 const teacherLoginEl = document.querySelector('#teacher-login');
 const teacherCalendarEl = document.querySelector('#teacher-calendar');
@@ -56,6 +57,18 @@ async function loadConfig() {
   const response = await fetch('/api/config');
   const config = await response.json();
   courseTitleEl.textContent = `Calendario curso ${config.schoolYear || '2026-2027'}`;
+}
+
+async function loadGoogleCalendarLink() {
+  if (audience !== 'teachers' || !addGoogleCalendarButton) return;
+  const response = await fetch('/api/teacher/google-calendar-link', { credentials: 'same-origin' });
+  if (!response.ok) {
+    addGoogleCalendarButton.hidden = true;
+    return;
+  }
+  const data = await response.json();
+  addGoogleCalendarButton.href = data.url;
+  addGoogleCalendarButton.hidden = false;
 }
 
 function googleLoginMessage() {
@@ -139,6 +152,7 @@ async function teacherLogin() {
   teacherCalendarEl.hidden = false;
   await loadConfig();
   await loadEvents();
+  await loadGoogleCalendarLink();
 }
 
 async function loadTeacherSession() {
@@ -152,6 +166,7 @@ async function loadTeacherSession() {
   teacherCalendarEl.hidden = false;
   await loadConfig();
   await loadEvents();
+  await loadGoogleCalendarLink();
 }
 
 if (audience === 'teachers') {

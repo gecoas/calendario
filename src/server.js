@@ -69,6 +69,21 @@ function normalizeCalendarUrl(url) {
   }
 }
 
+function googleCalendarIdFromUrl(url) {
+  try {
+    const parsed = new URL(String(url || ''));
+    const icalMatch = parsed.pathname.match(/\/calendar\/ical\/([^/]+)/);
+    if (icalMatch) return decodeURIComponent(icalMatch[1]);
+    const src = parsed.searchParams.get('src');
+    if (src) return src;
+    const cid = parsed.searchParams.get('cid');
+    if (cid) return Buffer.from(cid, 'base64').toString('utf8');
+  } catch (_error) {
+    return '';
+  }
+  return '';
+}
+
 function mergeConfig(base, runtime) {
   return {
     ...base,
@@ -118,6 +133,11 @@ async function loadConfig(applyEnv = true) {
 function requireAdmin(req, res, next) {
   if (req.session && req.session.admin) return next();
   return res.status(401).json({ error: 'No autorizado' });
+}
+
+function requireTeacher(req, res, next) {
+  if (req.session && (req.session.teacher || req.session.admin)) return next();
+  return res.status(401).json({ error: 'Inicia sesion como profesor para continuar' });
 }
 
 function requireCalendarAccess(req, res, next) {
@@ -838,6 +858,17 @@ async function createApp() {
     }
     req.session.teacher = { email };
     return res.json({ ok: true });
+  });
+
+  app.get('/api/teacher/google-calendar-link', requireTeacher, async (_req, res) => {
+    const config = await loadConfig();
+    const calendarUrl = config.googleCalendar.teacherIcsUrl;
+    if (!calendarUrl) return res.status(404).json({ error: 'No se ha configurado el calendario solo para profesores' });
+    const calendarId = googleCalendarIdFromUrl(calendarUrl);
+    const cid = calendarId || normalizeCalendarUrl(calendarUrl).replace(/^https?:/, 'webcal:');
+    const googleUrl = new URL('https://calendar.google.com/calendar/render');
+    googleUrl.searchParams.set('cid', cid);
+    res.json({ url: googleUrl.toString() });
   });
 
   app.post('/api/auth/intranet-sso', async (req, res, next) => {
