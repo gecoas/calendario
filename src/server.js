@@ -862,8 +862,8 @@ async function createApp() {
 
   app.get('/api/teacher/google-calendar-link', requireTeacher, async (_req, res) => {
     const config = await loadConfig();
-    const calendarUrl = config.googleCalendar.teacherIcsUrl;
-    if (!calendarUrl) return res.status(404).json({ error: 'No se ha configurado el calendario solo para profesores' });
+    const calendarUrl = config.googleCalendar.icsUrl;
+    if (!calendarUrl) return res.status(404).json({ error: 'No se ha configurado el calendario principal' });
     const calendarId = googleCalendarIdFromUrl(calendarUrl);
     const cid = calendarId || normalizeCalendarUrl(calendarUrl).replace(/^https?:/, 'webcal:');
     const googleUrl = new URL('https://calendar.google.com/calendar/render');
