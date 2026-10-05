@@ -64,6 +64,8 @@ button.fit-button { width: fit-content; }
 .notice-option input { width: auto; margin-top: 4px; }
 .notice-option span { display: grid; gap: 4px; }
 .notice-option small { color: var(--muted); font-weight: 500; white-space: pre-line; }
+.notice-option small.notice-send-state { font-weight: 800; }
+.notice-option small.notice-send-state.has-been-sent { color: var(--brand); }
 .drag-handle { width: 18px; height: 24px; flex: 0 0 18px; cursor: grab; user-select: none; border-radius: 6px; background: radial-gradient(circle, var(--muted) 2px, transparent 2.5px) 0 2px / 8px 8px; }
 .notice-body { color: var(--muted); line-height: 1.55; }
 .notice-sent-at { display: block; margin-top: 6px; color: var(--muted); }

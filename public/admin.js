@@ -37,6 +37,12 @@ function formatSentAt(value) {
   return `Último envío: ${new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))}`;
 }
 
+function formatNoticeMailStatus(value) {
+  if (!value) return 'No enviado todavía';
+  const date = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+  return `Enviado: ${date}`;
+}
+
 function formatEventDate(event) {
   if (event.allDay) {
     return new Intl.DateTimeFormat('es-ES', { weekday: 'short', day: '2-digit', month: '2-digit' }).format(new Date(event.start));
@@ -235,7 +241,7 @@ async function loadNotices() {
     <label class="notice-option" draggable="true" data-notice-option="${notice.id}">
       <span class="drag-handle" aria-label="Arrastrar para reordenar" title="Arrastrar para reordenar"></span>
       <input type="checkbox" value="${notice.id}">
-      <span><strong>${escapeHtml(notice.title)} · ${escapeHtml(notice.date)}</strong><small>${escapeHtml(htmlToText(notice.body))}</small></span>
+      <span><strong>${escapeHtml(notice.title)} · ${escapeHtml(notice.date)}</strong><small>${escapeHtml(htmlToText(notice.body))}</small><small class="notice-send-state ${notice.sentAt ? 'has-been-sent' : ''}">${formatNoticeMailStatus(notice.sentAt)}</small></span>
     </label>
   `).join('') || '<p>No hay avisos disponibles.</p>';
 }
