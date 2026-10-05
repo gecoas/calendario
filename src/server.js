@@ -346,6 +346,13 @@ function formatMailTime(event) {
   }).format(new Date(event.start));
 }
 
+function formatTeacherMailLocation(location) {
+  const normalized = String(location || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+  if (/\bnalda\b/.test(normalized)) return 'Sede Las Fuentes';
+  if (/\blogrono\b/.test(normalized)) return 'Sede Alcaste';
+  return location;
+}
+
 function normalizeNotice(input) {
   return {
     id: input.id || crypto.randomUUID(),
@@ -466,6 +473,7 @@ function buildMailHtml({ title, events, audience, notices = [], logoSrc = 'cid:l
   const items = events.map((event) => {
     const day = formatMailDay(event);
     const time = formatMailTime(event);
+    const location = audience === 'teachers' ? formatTeacherMailLocation(event.location) : event.location;
     const showDay = day !== previousDay;
     const teacherOnly = event.calendarSource === 'teachers';
     const eventBackground = teacherOnly ? 'background:#ffeb8a;' : '';
@@ -474,7 +482,7 @@ function buildMailHtml({ title, events, audience, notices = [], logoSrc = 'cid:l
     return `
       <tr>
         <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:#a61946;font-weight:700;white-space:nowrap;vertical-align:top;${eventBackground}">${showDay ? escapeHtml(day) : ''}</td>
-        <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:${eventColor};font-weight:700;vertical-align:top;${eventBackground}">${time ? `<span style="color:#a61946;margin-right:8px;">${escapeHtml(time)}</span>` : ''}${escapeHtml(event.title)}${event.location ? `<div style="font-weight:400;color:#655761;margin-top:4px;">${escapeHtml(event.location)}</div>` : ''}</td>
+        <td style="padding:14px 16px;border-bottom:1px solid #eadde2;color:${eventColor};font-weight:700;vertical-align:top;${eventBackground}">${time ? `<span style="color:#a61946;margin-right:8px;">${escapeHtml(time)}</span>` : ''}${escapeHtml(event.title)}${location ? `<div style="font-weight:400;color:#655761;margin-top:4px;">${escapeHtml(location)}</div>` : ''}</td>
       </tr>`;
   }).join('');
   return `<!doctype html><html><body style="margin:0;background:#f7f2ee;font-family:Arial,Helvetica,sans-serif;color:#24141a;"><div style="max-width:760px;margin:0 auto;padding:28px;"><div style="background:#fff;border:1px solid #eadde2;border-radius:18px;overflow:hidden;"><div style="padding:18px 28px;background:#a61946;color:#fff;"><table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;"><tr><td style="width:54px;vertical-align:middle;padding:0 16px 0 0;"><img src="${escapeHtml(logoSrc)}" alt="Logo colegio" width="46" height="46" style="display:block;width:46px;height:46px;object-fit:contain;"></td><td style="vertical-align:middle;"><h1 style="margin:0;font-size:26px;line-height:1.15;">${escapeHtml(title)}</h1>${intro ? `<p style="margin:8px 0 0;color:#f6d7e1;">${intro}</p>` : ''}</td></tr></table></div>${noticeItems ? `<div style="padding:20px 20px 8px;">${noticeItems}</div>` : ''}<table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;">${items || '<tr><td style="padding:20px;">No hay eventos en el rango seleccionado.</td></tr>'}</table></div></div></body></html>`;
