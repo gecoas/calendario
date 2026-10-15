@@ -100,6 +100,7 @@ button.fit-button { width: fit-content; }
 .agenda-day h3 { margin: 0; color: var(--brand); font-size: .95rem; }
 .agenda-day-events { display: grid; gap: 6px; }
 .agenda-event { display: grid; grid-template-columns: 54px 1fr; gap: 8px; align-items: start; border-radius: 9px; padding: 7px 9px; background: var(--brand); color: white; font-size: .9rem; line-height: 1.3; }
+.agenda-event.all-day-agenda-event { grid-template-columns: minmax(0, 1fr); }
 .agenda-event time { font-weight: 800; white-space: nowrap; }
 .agenda-event.teacher-calendar-event { background: #ffeb8a; color: var(--brand); }
 .agenda-empty { text-align: center; padding: 24px 0; }

@@ -123,7 +123,7 @@ function renderCalendar(events, range) {
     const dayEvents = eventsByDate.get(dateKey) || [];
     if (!dayEvents.length) continue;
     agendaDays.push(`<section class="agenda-day"><h3>${escapeHtml(agendaDate(day))}</h3><div class="agenda-day-events">${dayEvents.map((event) => `
-      <article class="agenda-event ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" title="${escapeHtml(event.title)}">
+      <article class="agenda-event ${event.allDay ? 'all-day-agenda-event' : ''} ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" title="${escapeHtml(event.title)}">
         ${eventTime(event) ? `<time>${eventTime(event)}</time>` : ''}
         <span>${escapeHtml(event.title)}</span>
       </article>`).join('')}</div></section>`);
