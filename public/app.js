@@ -53,6 +53,11 @@ function eventTime(event) {
   return new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(new Date(event.start));
 }
 
+function agendaDate(date) {
+  const value = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).format(date);
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 async function loadConfig() {
   const response = await fetch('/api/config');
   const config = await response.json();
@@ -110,7 +115,23 @@ function renderCalendar(events, range) {
       </div>
     `);
   }
-  calendarEl.innerHTML = cells.join('');
+  const firstMonthDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+  const lastMonthDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+  const agendaDays = [];
+  for (let day = firstMonthDay; day <= lastMonthDay; day = addDays(day, 1)) {
+    const dateKey = localIsoDate(day);
+    const dayEvents = eventsByDate.get(dateKey) || [];
+    if (!dayEvents.length) continue;
+    agendaDays.push(`<section class="agenda-day"><h3>${escapeHtml(agendaDate(day))}</h3><div class="agenda-day-events">${dayEvents.map((event) => `
+      <article class="agenda-event ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" title="${escapeHtml(event.title)}">
+        ${eventTime(event) ? `<time>${eventTime(event)}</time>` : ''}
+        <span>${escapeHtml(event.title)}</span>
+      </article>`).join('')}</div></section>`);
+  }
+  calendarEl.innerHTML = `
+    <div class="month-grid-view">${cells.join('')}</div>
+    <div class="agenda-view">${agendaDays.join('') || '<p class="agenda-empty">No hay eventos este mes.</p>'}</div>
+  `;
 }
 
 function escapeHtml(value) {

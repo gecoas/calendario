@@ -93,7 +93,16 @@ button.fit-button { width: fit-content; }
 .month-actions.teacher-month-actions { justify-content: space-between; }
 .month-actions button { width: auto; }
 .month-actions a.button { width: auto; }
-.month-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--line); gap: 1px; }
+.calendar-views { min-width: 0; }
+.month-grid-view { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--line); gap: 1px; }
+.agenda-view { display: none; padding: 12px; }
+.agenda-day { display: grid; grid-template-columns: minmax(95px, 28%) 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.agenda-day h3 { margin: 0; color: var(--brand); font-size: .95rem; }
+.agenda-day-events { display: grid; gap: 6px; }
+.agenda-event { display: grid; grid-template-columns: 54px 1fr; gap: 8px; align-items: start; border-radius: 9px; padding: 7px 9px; background: var(--brand); color: white; font-size: .9rem; line-height: 1.3; }
+.agenda-event time { font-weight: 800; white-space: nowrap; }
+.agenda-event.teacher-calendar-event { background: #ffeb8a; color: var(--brand); }
+.agenda-empty { text-align: center; padding: 24px 0; }
 .weekday { background: #f4e7ec; color: var(--brand); font-weight: 900; text-align: center; padding: 10px 4px; }
 .month-cell { min-height: 132px; background: rgba(255,255,255,.78); padding: 8px; display: grid; grid-template-rows: auto 1fr; gap: 6px; }
 .month-cell.outside { background: rgba(245, 241, 232, .64); color: #9a9388; }
@@ -115,4 +124,19 @@ button.fit-button { width: fit-content; }
   .month-event { font-size: .68rem; padding: 3px 5px; }
   .public-header { grid-template-columns: 44px 1fr 44px; gap: 8px; }
   .site-logo { width: 44px; height: 44px; }
+}
+
+@media (max-width: 720px) and (orientation: portrait) {
+  .month-grid-view { display: none; }
+  .agenda-view { display: grid; padding: 8px 14px; }
+  .agenda-day { grid-template-columns: 1fr; gap: 7px; padding: 11px 0; }
+  .agenda-day h3 { font-size: .9rem; }
+  .agenda-event { font-size: .86rem; }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  .month-grid-view .month-cell { min-height: 70px; padding: 4px; gap: 3px; }
+  .month-grid-view .weekday { padding: 6px 2px; }
+  .month-grid-view .day-events { max-height: 43px; gap: 2px; overflow-y: auto; }
+  .month-grid-view .month-event { padding: 2px 3px; font-size: .62rem; line-height: 1.1; }
 }
