@@ -138,6 +138,6 @@ button.fit-button { width: fit-content; }
 @media (orientation: landscape) and (max-height: 600px) {
   .month-grid-view .month-cell { min-height: 70px; padding: 4px; gap: 3px; }
   .month-grid-view .weekday { padding: 6px 2px; }
-  .month-grid-view .day-events { max-height: 43px; gap: 2px; overflow-y: auto; }
+  .month-grid-view .day-events { gap: 2px; }
   .month-grid-view .month-event { padding: 2px 3px; font-size: .62rem; line-height: 1.1; }
 }
