@@ -11,6 +11,19 @@ const teacherCalendarEl = document.querySelector('#teacher-calendar');
 const teacherStatusEl = document.querySelector('#teacher-login-status');
 let currentMonth = new Date();
 currentMonth.setDate(1);
+const agendaViewport = window.matchMedia('(max-width: 1024px) and (orientation: portrait)');
+
+function syncCalendarView() {
+  const monthGrid = calendarEl.querySelector('.month-grid-view');
+  const agenda = calendarEl.querySelector('.agenda-view');
+  if (!monthGrid || !agenda) return;
+  monthGrid.hidden = agendaViewport.matches;
+  agenda.hidden = !agendaViewport.matches;
+}
+
+if (agendaViewport.addEventListener) agendaViewport.addEventListener('change', syncCalendarView);
+else agendaViewport.addListener(syncCalendarView);
+window.addEventListener('resize', syncCalendarView);
 
 function isoDate(date) {
   return date.toISOString().slice(0, 10);
@@ -132,6 +145,7 @@ function renderCalendar(events, range) {
     <div class="month-grid-view">${cells.join('')}</div>
     <div class="agenda-view">${agendaDays.join('') || '<p class="agenda-empty">No hay eventos este mes.</p>'}</div>
   `;
+  syncCalendarView();
 }
 
 function escapeHtml(value) {

@@ -94,8 +94,9 @@ button.fit-button { width: fit-content; }
 .month-actions button { width: auto; }
 .month-actions a.button { width: auto; }
 .calendar-views { min-width: 0; }
+.calendar-views [hidden] { display: none !important; }
 .month-grid-view { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--line); gap: 1px; }
-.agenda-view { display: none; padding: 12px; }
+.agenda-view:not([hidden]) { display: grid; padding: 12px; }
 .agenda-day { display: grid; grid-template-columns: minmax(95px, 28%) 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .agenda-day h3 { margin: 0; color: var(--brand); font-size: .95rem; }
 .agenda-day-events { display: grid; gap: 6px; }
@@ -127,9 +128,8 @@ button.fit-button { width: fit-content; }
   .site-logo { width: 44px; height: 44px; }
 }
 
-@media (max-width: 720px) and (orientation: portrait) {
-  .month-grid-view { display: none; }
-  .agenda-view { display: grid; padding: 8px 14px; }
+@media (max-width: 1024px) and (orientation: portrait) {
+  .agenda-view:not([hidden]) { padding: 8px 14px; }
   .agenda-day { grid-template-columns: 1fr; gap: 7px; padding: 11px 0; }
   .agenda-day h3 { font-size: .9rem; }
   .agenda-event { font-size: .86rem; }
