@@ -11,6 +11,7 @@ const teacherCalendarEl = document.querySelector('#teacher-calendar');
 const teacherStatusEl = document.querySelector('#teacher-login-status');
 let currentMonth = new Date();
 currentMonth.setDate(1);
+let focusTodayOnFirstRender = true;
 const agendaViewport = window.matchMedia('(max-width: 1024px) and (orientation: portrait)');
 
 function syncCalendarView() {
@@ -106,6 +107,7 @@ async function loadEvents() {
 
 function renderCalendar(events, range) {
   const eventsByDate = new Map();
+  const todayKey = localIsoDate(new Date());
   events.forEach((event) => {
     eventDates(event).forEach((date) => {
       if (!eventsByDate.has(date)) eventsByDate.set(date, []);
@@ -119,8 +121,9 @@ function renderCalendar(events, range) {
     const dateKey = localIsoDate(day);
     const dayEvents = eventsByDate.get(dateKey) || [];
     const outside = day.getMonth() !== currentMonth.getMonth();
+    const today = dateKey === todayKey;
     cells.push(`
-      <div class="month-cell ${outside ? 'outside' : ''}">
+      <div class="month-cell ${outside ? 'outside' : ''} ${today ? 'today' : ''}" data-date="${dateKey}">
         <div class="day-number">${day.getDate()}</div>
         <div class="day-events">
           ${dayEvents.map((event) => `<div class="month-event ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" title="${escapeHtml(event.title)}">${eventTime(event) ? `${eventTime(event)} ` : ''}${escapeHtml(event.title)}</div>`).join('')}
@@ -134,18 +137,24 @@ function renderCalendar(events, range) {
   for (let day = firstMonthDay; day <= lastMonthDay; day = addDays(day, 1)) {
     const dateKey = localIsoDate(day);
     const dayEvents = eventsByDate.get(dateKey) || [];
-    if (!dayEvents.length) continue;
-    agendaDays.push(`<section class="agenda-day"><h3>${escapeHtml(agendaDate(day))}</h3><div class="agenda-day-events">${dayEvents.map((event) => `
+    const today = dateKey === todayKey;
+    if (!dayEvents.length && !today) continue;
+    agendaDays.push(`<section class="agenda-day ${today ? 'today' : ''}" data-date="${dateKey}"><h3>${escapeHtml(agendaDate(day))}${today ? ' · Hoy' : ''}</h3><div class="agenda-day-events">${dayEvents.map((event) => `
       <article class="agenda-event ${event.allDay ? 'all-day-agenda-event' : ''} ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" title="${escapeHtml(event.title)}">
         ${eventTime(event) ? `<time>${eventTime(event)}</time>` : ''}
         <span>${escapeHtml(event.title)}</span>
-      </article>`).join('')}</div></section>`);
+      </article>`).join('') || (today ? '<p class="agenda-no-events">Hoy no hay eventos.</p>' : '')}</div></section>`);
   }
   calendarEl.innerHTML = `
     <div class="month-grid-view">${cells.join('')}</div>
     <div class="agenda-view">${agendaDays.join('') || '<p class="agenda-empty">No hay eventos este mes.</p>'}</div>
   `;
   syncCalendarView();
+  if (focusTodayOnFirstRender) {
+    focusTodayOnFirstRender = false;
+    const selector = agendaViewport.matches ? '.agenda-day.today' : '.month-cell.today';
+    requestAnimationFrame(() => calendarEl.querySelector(selector)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  }
 }
 
 function escapeHtml(value) {
