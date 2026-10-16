@@ -211,22 +211,24 @@ function eventId(event) {
 
 function normalizeEvent(raw, visibleMap, calendarSource = 'main') {
   const originalId = eventId(raw);
-  const id = calendarSource === 'teachers' ? crypto.createHash('sha1').update(`teachers:${originalId}`).digest('hex') : originalId;
+  const id = calendarSource === 'teachers' ? `teachers-${crypto.createHash('sha1').update(`teachers:${originalId}`).digest('hex')}` : originalId;
   const allDay = raw.datetype === 'date' || raw.start?.dateOnly === true;
+  const seriesId = raw.seriesId || null;
   return {
     id,
     calendarSource,
+    seriesId,
     title: raw.summary || 'Sin titulo',
     description: raw.description || '',
     location: raw.location || '',
     start: raw.start ? raw.start.toISOString() : null,
     end: raw.end ? raw.end.toISOString() : null,
     allDay,
-    visibleToFamilies: calendarSource === 'main' && Boolean(visibleMap[id])
+    visibleToFamilies: calendarSource === 'main' && Boolean(Object.hasOwn(visibleMap, id) ? visibleMap[id] : (seriesId && visibleMap[seriesId]))
   };
 }
 
-async function fetchCalendarEvents(url, visibleMap, calendarSource) {
+async function fetchCalendarEvents(url, visibleMap, calendarSource, from, to) {
   const calendarUrl = normalizeCalendarUrl(url);
   if (!calendarUrl) return [];
   const response = await fetch(calendarUrl);
@@ -238,17 +240,38 @@ async function fetchCalendarEvents(url, visibleMap, calendarSource) {
     throw new Error(`La URL del calendario ${calendarSource === 'teachers' ? 'solo profesores' : 'principal'} no devuelve un iCal valido.`);
   }
   const parsed = await ical.async.parseICS(calendarText);
-  return Object.values(parsed)
-    .filter((item) => item.type === 'VEVENT' && item.start)
-    .map((item) => normalizeEvent(item, visibleMap, calendarSource));
+  const calendarItems = Object.values(parsed).filter((item) => item.type === 'VEVENT' && item.start && !item.recurrenceId);
+  const hasRange = Boolean(from && to);
+  const rangeStart = hasRange ? madridDateBoundary(from) : null;
+  const rangeEnd = hasRange ? new Date(madridDateBoundary(addDateDays(to, 1)).getTime() - 1) : null;
+  return calendarItems.flatMap((item) => {
+    if (!hasRange) return [normalizeEvent(item, visibleMap, calendarSource)];
+    const seriesId = item.rrule ? eventId(item) : null;
+    const instances = ical.expandRecurringEvent(item, {
+      from: rangeStart,
+      to: rangeEnd,
+      expandOngoing: true
+    });
+    return instances.map((instance) => normalizeEvent({
+      ...item,
+      ...(instance.event || {}),
+      ...instance,
+      uid: item.uid,
+      start: instance.start,
+      end: instance.end,
+      summary: instance.summary || item.summary,
+      datetype: instance.isFullDay ? 'date' : item.datetype,
+      seriesId
+    }, visibleMap, calendarSource));
+  });
 }
 
-async function fetchEvents() {
+async function fetchEvents(from, to) {
   const config = await loadConfig();
   const visibleMap = await readJson(visibilityPath, {});
   const [mainEvents, teacherEvents] = await Promise.all([
-    fetchCalendarEvents(config.googleCalendar.icsUrl, visibleMap, 'main'),
-    fetchCalendarEvents(config.googleCalendar.teacherIcsUrl, visibleMap, 'teachers')
+    fetchCalendarEvents(config.googleCalendar.icsUrl, visibleMap, 'main', from, to),
+    fetchCalendarEvents(config.googleCalendar.teacherIcsUrl, visibleMap, 'teachers', from, to)
   ]);
   return [...mainEvents, ...teacherEvents].sort((a, b) => new Date(a.start) - new Date(b.start));
 }
@@ -625,7 +648,7 @@ async function processDueScheduledMails() {
     for (const item of dueItems) {
       await updateScheduleStatus(item.id, 'sending');
       try {
-        const events = excludeTeachersOnlyCalendarEvents(filterByRange(await fetchEvents(), item.from, item.to));
+        const events = excludeTeachersOnlyCalendarEvents(filterByRange(await fetchEvents(item.from, item.to), item.from, item.to));
         const notices = await selectedNotices(item.noticeIds);
         const html = buildMailHtml({ title: item.title, events, audience: item.audience, notices });
         await sendMail({ title: item.title, html, recipientKey: item.recipientKey, attachments: [mailLogoAttachment()] });
@@ -674,7 +697,7 @@ async function updateScheduleStatus(id, status, error, sentAt) {
 }
 
 async function sendImmediateMail(payload) {
-  const events = excludeTeachersOnlyCalendarEvents(filterByRange(await fetchEvents(), payload.from, payload.to));
+  const events = excludeTeachersOnlyCalendarEvents(filterByRange(await fetchEvents(payload.from, payload.to), payload.from, payload.to));
   const notices = await selectedNotices(payload.noticeIds);
   const html = buildMailHtml({ title: payload.title || 'Eventos', events, audience: 'teachers', notices });
   await sendMail({ title: payload.title || 'Eventos', html, recipientKey: payload.recipientKey || 'admin', attachments: [mailLogoAttachment()] });
@@ -913,7 +936,7 @@ async function createApp() {
 
   app.get('/api/events', requireCalendarAccess, async (req, res, next) => {
     try {
-      const events = filterByRange(await fetchEvents(), req.query.from, req.query.to);
+      const events = filterByRange(await fetchEvents(req.query.from, req.query.to), req.query.from, req.query.to);
       res.json(req.query.audience === 'families' ? events.filter((event) => event.visibleToFamilies) : events);
     } catch (error) {
       next(error);
@@ -921,6 +944,9 @@ async function createApp() {
   });
 
   app.put('/api/events/:id/visibility', requireAdmin, async (req, res) => {
+    if (req.params.id.startsWith('teachers-') || req.body.calendarSource === 'teachers') {
+      return res.status(400).json({ error: 'Los eventos del calendario para profesores no se pueden mostrar a las familias' });
+    }
     if (req.body.visibleToFamilies) {
       const events = await fetchEvents();
       if (events.some((event) => event.id === req.params.id && event.calendarSource === 'teachers')) {
@@ -929,6 +955,7 @@ async function createApp() {
     }
     const visibleMap = await readJson(visibilityPath, {});
     if (req.body.visibleToFamilies) visibleMap[req.params.id] = true;
+    else if (req.body.seriesId && visibleMap[req.body.seriesId]) visibleMap[req.params.id] = false;
     else delete visibleMap[req.params.id];
     await writeJson(visibilityPath, visibleMap);
     res.json({ ok: true });
@@ -978,7 +1005,7 @@ async function createApp() {
   app.post('/api/mail/preview', requireAdmin, async (req, res, next) => {
     try {
       const cfg = await loadConfig();
-      const events = excludeTeachersOnlyCalendarEvents(filterByRange(await fetchEvents(), req.body.from, req.body.to));
+      const events = excludeTeachersOnlyCalendarEvents(filterByRange(await fetchEvents(req.body.from, req.body.to), req.body.from, req.body.to));
       const filtered = req.body.audience === 'families' ? events.filter((event) => event.visibleToFamilies) : events;
       const notices = await selectedNotices(req.body.noticeIds);
       res.json({ html: buildMailHtml({ title: req.body.title || 'Eventos', events: filtered, audience: req.body.audience, notices, logoSrc: publicMailLogoUrl(cfg) }), events: filtered, notices });
@@ -1017,7 +1044,7 @@ async function createApp() {
 
   app.post('/api/families/pdf', requireAdmin, async (req, res, next) => {
     try {
-      const events = filterByRange(await fetchEvents(), req.body.from, req.body.to).filter((event) => event.visibleToFamilies);
+      const events = filterByRange(await fetchEvents(req.body.from, req.body.to), req.body.from, req.body.to).filter((event) => event.visibleToFamilies);
       const cfg = await loadConfig();
       const pdf = await createFamilyPdf(events, trimesterTitle(req.body.from, cfg.schoolYear), req.body.from, req.body.to);
       res.setHeader('Content-Type', 'application/pdf');
@@ -1030,7 +1057,7 @@ async function createApp() {
 
   app.get('/api/calendar/pdf', requireCalendarAccess, async (req, res, next) => {
     try {
-      const events = filterByRange(await fetchEvents(), req.query.from, req.query.to);
+      const events = filterByRange(await fetchEvents(req.query.from, req.query.to), req.query.from, req.query.to);
       const filtered = req.query.audience === 'families' ? events.filter((event) => event.visibleToFamilies) : excludeTeachersOnlyCalendarEvents(events);
       const cfg = await loadConfig();
       const pdf = await createFamilyPdf(filtered, monthTitle(req.query.month, cfg.schoolYear), req.query.from, req.query.to);

@@ -207,7 +207,7 @@ async function loadEvents() {
       </div>
       ${event.calendarSource === 'teachers'
         ? '<span class="badge teacher-only-badge">Solo profesores</span>'
-        : `<label><span class="badge ${event.visibleToFamilies ? '' : 'private'}">${event.visibleToFamilies ? 'Familias' : 'Solo profesores'}</span><input type="checkbox" data-event-id="${event.id}" ${event.visibleToFamilies ? 'checked' : ''}></label>`}
+        : `<label><span class="badge ${event.visibleToFamilies ? '' : 'private'}">${event.visibleToFamilies ? 'Familias' : 'Solo profesores'}</span><input type="checkbox" data-event-id="${event.id}" data-series-id="${event.seriesId || ''}" data-calendar-source="${event.calendarSource}" ${event.visibleToFamilies ? 'checked' : ''}></label>`}
     </article>
   `).join('') || '<p>No hay eventos en el rango seleccionado. Revisa la URL ICS del calendario de Google.</p>';
 }
@@ -215,7 +215,7 @@ async function loadEvents() {
 async function changeVisibility(input) {
   await request(`/api/events/${input.dataset.eventId}/visibility`, {
     method: 'PUT',
-    body: JSON.stringify({ visibleToFamilies: input.checked })
+    body: JSON.stringify({ visibleToFamilies: input.checked, seriesId: input.dataset.seriesId, calendarSource: input.dataset.calendarSource })
   });
   await loadEvents();
 }
