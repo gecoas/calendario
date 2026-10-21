@@ -162,8 +162,9 @@ function renderCalendar(events, range) {
     const selector = agendaViewport.matches ? '.agenda-day' : '.month-cell';
     const dayElement = [...calendarEl.querySelectorAll(`${selector}[data-date]`)].find((element) => element.dataset.date === focusDate);
     const highlightEventId = pendingHighlightEventId;
+    const eventSelector = agendaViewport.matches ? '.agenda-event[data-event-id]' : '.month-event[data-event-id]';
     const eventElement = highlightEventId
-      ? [...calendarEl.querySelectorAll('[data-event-id]')].find((element) => element.dataset.eventId === highlightEventId && element.dataset.eventDate === focusDate)
+      ? [...calendarEl.querySelectorAll(eventSelector)].find((element) => element.dataset.eventId === highlightEventId && element.dataset.eventDate === focusDate)
       : null;
     const useNativeAgendaJump = Boolean(highlightEventId && agendaViewport.matches);
     if (!useNativeAgendaJump) requestAnimationFrame(() => dayElement?.scrollIntoView({ behavior: 'smooth', block: 'center' }));

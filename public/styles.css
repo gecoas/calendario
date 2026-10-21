@@ -125,6 +125,7 @@ button.fit-button { width: fit-content; }
 .month-event { background: var(--brand); color: white; border-radius: 8px; padding: 4px 6px; font-size: .78rem; line-height: 1.2; overflow-wrap: anywhere; white-space: normal; }
 .month-event.teacher-calendar-event { background: #ffeb8a; color: var(--brand); }
 .search-result-highlight { position: relative; z-index: 2; animation: search-event-highlight 1s ease-in-out 5; }
+.agenda-event.search-result-highlight, .month-event.search-result-highlight { outline: 3px solid #e8a900; outline-offset: 2px; }
 @keyframes search-event-highlight {
   0%, 100% { box-shadow: 0 0 0 2px #e8a900; }
   50% { box-shadow: 0 0 0 5px #e8a900, 0 0 16px rgba(166, 25, 70, .35); }
