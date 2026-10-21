@@ -15,6 +15,7 @@ let currentMonth = new Date();
 currentMonth.setDate(1);
 let focusTodayOnFirstRender = true;
 let pendingFocusDate = '';
+let pendingHighlightEventId = '';
 let searchTimer;
 let searchController;
 const agendaViewport = window.matchMedia('(max-width: 1024px) and (orientation: portrait)');
@@ -131,7 +132,7 @@ function renderCalendar(events, range) {
       <div class="month-cell ${outside ? 'outside' : ''} ${today ? 'today' : ''}" data-date="${dateKey}">
         <div class="day-number">${day.getDate()}</div>
         <div class="day-events">
-          ${dayEvents.map((event) => `<div class="month-event ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" title="${escapeHtml(event.title)}">${eventTime(event) ? `${eventTime(event)} ` : ''}${escapeHtml(event.title)}</div>`).join('')}
+          ${dayEvents.map((event) => `<div class="month-event ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" data-event-id="${escapeHtml(event.id)}" data-event-date="${dateKey}" title="${escapeHtml(event.title)}">${eventTime(event) ? `${eventTime(event)} ` : ''}${escapeHtml(event.title)}</div>`).join('')}
         </div>
       </div>
     `);
@@ -145,7 +146,7 @@ function renderCalendar(events, range) {
     const today = dateKey === todayKey;
     if (!dayEvents.length && !today) continue;
     agendaDays.push(`<section class="agenda-day ${today ? 'today' : ''}" data-date="${dateKey}"><h3>${escapeHtml(agendaDate(day))}${today ? ' · Hoy' : ''}</h3><div class="agenda-day-events">${dayEvents.map((event) => `
-      <article class="agenda-event ${event.allDay ? 'all-day-agenda-event' : ''} ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" title="${escapeHtml(event.title)}">
+      <article class="agenda-event ${event.allDay ? 'all-day-agenda-event' : ''} ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" data-event-id="${escapeHtml(event.id)}" data-event-date="${dateKey}" title="${escapeHtml(event.title)}">
         ${eventTime(event) ? `<time>${eventTime(event)}</time>` : ''}
         <span>${escapeHtml(event.title)}</span>
       </article>`).join('') || (today ? '<p class="agenda-no-events">Hoy no hay eventos.</p>' : '')}</div></section>`);
@@ -159,8 +160,21 @@ function renderCalendar(events, range) {
   if (focusDate) {
     focusTodayOnFirstRender = false;
     const selector = agendaViewport.matches ? '.agenda-day' : '.month-cell';
-    requestAnimationFrame(() => [...calendarEl.querySelectorAll(`${selector}[data-date]`)].find((element) => element.dataset.date === focusDate)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    const highlightEventId = pendingHighlightEventId;
+    requestAnimationFrame(() => {
+      const eventElement = highlightEventId
+        ? [...calendarEl.querySelectorAll('[data-event-id]')].find((element) => element.dataset.eventId === highlightEventId && element.dataset.eventDate === focusDate)
+        : null;
+      const dayElement = [...calendarEl.querySelectorAll(`${selector}[data-date]`)].find((element) => element.dataset.date === focusDate);
+      const target = eventElement || dayElement;
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (eventElement) {
+        eventElement.classList.add('search-result-highlight');
+        window.setTimeout(() => eventElement.classList.remove('search-result-highlight'), 5000);
+      }
+    });
     pendingFocusDate = '';
+    pendingHighlightEventId = '';
   }
 }
 
@@ -186,7 +200,7 @@ async function searchEvents(query) {
     const events = await response.json();
     if (!response.ok) throw new Error(events.error || 'No se pudo buscar');
     eventSearchResults.innerHTML = events.length ? events.map((event) => `
-      <button type="button" class="search-result ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" data-search-date="${String(event.start).slice(0, 10)}">
+      <button type="button" class="search-result ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" data-search-date="${String(event.start).slice(0, 10)}" data-search-event-id="${escapeHtml(event.id)}">
         <time>${escapeHtml(searchResultDate(event))}</time>
         <span><strong>${escapeHtml(event.title)}</strong>${event.location ? `<small>${escapeHtml(event.location)}</small>` : ''}</span>
       </button>
@@ -226,6 +240,7 @@ eventSearchResults.addEventListener('click', (event) => {
   const result = event.target.closest('[data-search-date]');
   if (!result) return;
   pendingFocusDate = result.dataset.searchDate;
+  pendingHighlightEventId = result.dataset.searchEventId;
   const date = new Date(`${pendingFocusDate}T12:00:00`);
   currentMonth = new Date(date.getFullYear(), date.getMonth(), 1);
   loadEvents().catch(() => calendarEl.innerHTML = '');

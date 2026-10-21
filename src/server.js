@@ -16,6 +16,8 @@ const visibilityPath = path.join(dataDir, 'visibility.json');
 const scheduledPath = path.join(dataDir, 'scheduled-mails.json');
 const noticesPath = path.join(dataDir, 'notices.json');
 const madridTimeZone = 'Europe/Madrid';
+const eventSearchCacheTtlMs = 60_000;
+let eventSearchCache = null;
 
 async function readJson(file, fallback) {
   try {
@@ -957,7 +959,30 @@ async function createApp() {
       const endYear = schoolYears[1] || startYear + 1;
       const from = `${startYear}-09-01`;
       const to = `${endYear}-08-31`;
-      let events = filterByRange(await fetchEvents(from, to), from, to);
+      const cacheKey = crypto.createHash('sha256').update(JSON.stringify([
+        from,
+        to,
+        config.googleCalendar.icsUrl,
+        config.googleCalendar.teacherIcsUrl
+      ])).digest('hex');
+      let calendarEvents;
+      if (eventSearchCache?.key === cacheKey && (eventSearchCache.promise || eventSearchCache.expiresAt > Date.now())) {
+        calendarEvents = eventSearchCache.events || await eventSearchCache.promise;
+      } else {
+        const entry = { key: cacheKey, expiresAt: Date.now() + eventSearchCacheTtlMs, events: null, promise: null };
+        entry.promise = fetchEvents(from, to).then((events) => {
+          entry.events = events;
+          entry.promise = null;
+          entry.expiresAt = Date.now() + eventSearchCacheTtlMs;
+          return events;
+        }).catch((error) => {
+          if (eventSearchCache === entry) eventSearchCache = null;
+          throw error;
+        });
+        eventSearchCache = entry;
+        calendarEvents = await entry.promise;
+      }
+      let events = filterByRange(calendarEvents, from, to);
       if (req.query.audience === 'families') events = events.filter((event) => event.visibleToFamilies);
       const matches = events.filter((event) => normalizeSearchText([event.title, event.location, event.description].join(' ')).includes(query));
       const now = Date.now();

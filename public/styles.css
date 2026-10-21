@@ -124,6 +124,11 @@ button.fit-button { width: fit-content; }
 .day-events { display: grid; align-content: start; gap: 4px; }
 .month-event { background: var(--brand); color: white; border-radius: 8px; padding: 4px 6px; font-size: .78rem; line-height: 1.2; overflow-wrap: anywhere; white-space: normal; }
 .month-event.teacher-calendar-event { background: #ffeb8a; color: var(--brand); }
+.search-result-highlight { position: relative; z-index: 2; animation: search-event-highlight 1s ease-in-out 5; }
+@keyframes search-event-highlight {
+  0%, 100% { box-shadow: 0 0 0 2px #e8a900; }
+  50% { box-shadow: 0 0 0 5px #e8a900, 0 0 16px rgba(166, 25, 70, .35); }
+}
 .teacher-only-badge { background: var(--brand); color: #fff0a6; }
 
 @media (max-width: 820px) {
@@ -153,4 +158,8 @@ button.fit-button { width: fit-content; }
   .month-grid-view .weekday { padding: 6px 2px; }
   .month-grid-view .day-events { gap: 2px; }
   .month-grid-view .month-event { padding: 2px 3px; font-size: .62rem; line-height: 1.1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-result-highlight { animation: none; box-shadow: 0 0 0 4px #e8a900; }
 }
