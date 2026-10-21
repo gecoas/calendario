@@ -314,6 +314,48 @@ function normalizeSearchText(value) {
   return String(value || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 }
 
+function schoolYearDateRange(config) {
+  const years = String(config.schoolYear || '').match(/\d{4}/g)?.map(Number) || [];
+  const startYear = years[0] || new Date().getFullYear();
+  const endYear = years[1] || startYear + 1;
+  return { from: `${startYear}-09-01`, to: `${endYear}-08-31` };
+}
+
+function schoolYearEventCacheKey(config, from, to) {
+  return crypto.createHash('sha256').update(JSON.stringify([
+    from,
+    to,
+    config.googleCalendar.icsUrl,
+    config.googleCalendar.teacherIcsUrl
+  ])).digest('hex');
+}
+
+async function getSchoolYearEvents(config, from, to) {
+  const key = schoolYearEventCacheKey(config, from, to);
+  if (eventSearchCache?.key === key && (eventSearchCache.promise || eventSearchCache.expiresAt > Date.now())) {
+    return eventSearchCache.events || eventSearchCache.promise;
+  }
+
+  const entry = { key, expiresAt: Date.now() + eventSearchCacheTtlMs, events: null, promise: null };
+  entry.promise = fetchEvents(from, to).then((events) => {
+    entry.events = events;
+    entry.promise = null;
+    entry.expiresAt = Date.now() + eventSearchCacheTtlMs;
+    return events;
+  }).catch((error) => {
+    if (eventSearchCache === entry) eventSearchCache = null;
+    throw error;
+  });
+  eventSearchCache = entry;
+  return entry.promise;
+}
+
+async function getCachedSchoolYearEvents(config, from, to) {
+  const key = schoolYearEventCacheKey(config, from, to);
+  if (eventSearchCache?.key !== key || (!eventSearchCache.promise && eventSearchCache.expiresAt <= Date.now())) return null;
+  return eventSearchCache.events || eventSearchCache.promise;
+}
+
 function formatDate(value) {
   return new Intl.DateTimeFormat('es-ES', {
     timeZone: madridTimeZone,
@@ -942,7 +984,12 @@ async function createApp() {
 
   app.get('/api/events', requireCalendarAccess, async (req, res, next) => {
     try {
-      const events = filterByRange(await fetchEvents(req.query.from, req.query.to), req.query.from, req.query.to);
+      const config = await loadConfig();
+      const schoolYear = schoolYearDateRange(config);
+      const canUseSearchCache = req.query.from >= schoolYear.from && req.query.to <= schoolYear.to;
+      const cachedEvents = canUseSearchCache ? await getCachedSchoolYearEvents(config, schoolYear.from, schoolYear.to) : null;
+      const sourceEvents = cachedEvents || await fetchEvents(req.query.from, req.query.to);
+      const events = filterByRange(sourceEvents, req.query.from, req.query.to);
       res.json(req.query.audience === 'families' ? events.filter((event) => event.visibleToFamilies) : events);
     } catch (error) {
       next(error);
@@ -954,34 +1001,8 @@ async function createApp() {
       const query = normalizeSearchText(req.query.q).trim();
       if (query.length < 2) return res.json([]);
       const config = await loadConfig();
-      const schoolYears = String(config.schoolYear || '').match(/\d{4}/g)?.map(Number) || [];
-      const startYear = schoolYears[0] || new Date().getFullYear();
-      const endYear = schoolYears[1] || startYear + 1;
-      const from = `${startYear}-09-01`;
-      const to = `${endYear}-08-31`;
-      const cacheKey = crypto.createHash('sha256').update(JSON.stringify([
-        from,
-        to,
-        config.googleCalendar.icsUrl,
-        config.googleCalendar.teacherIcsUrl
-      ])).digest('hex');
-      let calendarEvents;
-      if (eventSearchCache?.key === cacheKey && (eventSearchCache.promise || eventSearchCache.expiresAt > Date.now())) {
-        calendarEvents = eventSearchCache.events || await eventSearchCache.promise;
-      } else {
-        const entry = { key: cacheKey, expiresAt: Date.now() + eventSearchCacheTtlMs, events: null, promise: null };
-        entry.promise = fetchEvents(from, to).then((events) => {
-          entry.events = events;
-          entry.promise = null;
-          entry.expiresAt = Date.now() + eventSearchCacheTtlMs;
-          return events;
-        }).catch((error) => {
-          if (eventSearchCache === entry) eventSearchCache = null;
-          throw error;
-        });
-        eventSearchCache = entry;
-        calendarEvents = await entry.promise;
-      }
+      const { from, to } = schoolYearDateRange(config);
+      const calendarEvents = await getSchoolYearEvents(config, from, to);
       let events = filterByRange(calendarEvents, from, to);
       if (req.query.audience === 'families') events = events.filter((event) => event.visibleToFamilies);
       const matches = events.filter((event) => normalizeSearchText([event.title, event.location, event.description].join(' ')).includes(query));
