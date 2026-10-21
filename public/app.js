@@ -156,7 +156,7 @@ function renderCalendar(events, range) {
     <div class="agenda-view">${agendaDays.join('') || '<p class="agenda-empty">No hay eventos este mes.</p>'}</div>
   `;
   syncCalendarView();
-  const focusDate = pendingFocusDate || (focusTodayOnFirstRender ? todayKey : '');
+  const focusDate = pendingHighlightEventId ? '' : pendingFocusDate || (focusTodayOnFirstRender ? todayKey : '');
   if (focusDate) {
     focusTodayOnFirstRender = false;
     const selector = agendaViewport.matches ? '.agenda-day' : '.month-cell';
@@ -191,6 +191,35 @@ function searchResultDate(event) {
   const date = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(event.start));
   const time = eventTime(event);
   return `${date}${time ? ` · ${time}` : ' · Todo el día'}`;
+}
+
+function focusSearchResult(date, eventId) {
+  const isAgenda = agendaViewport.matches;
+  const selector = isAgenda ? '.agenda-day' : '.month-cell';
+  const dayElement = [...calendarEl.querySelectorAll(`${selector}[data-date]`)].find((element) => element.dataset.date === date);
+  const eventElement = [...calendarEl.querySelectorAll('[data-event-id]')].find((element) => element.dataset.eventId === eventId && element.dataset.eventDate === date);
+  const target = eventElement || dayElement;
+  if (!target) return;
+
+  if (eventElement) {
+    eventElement.classList.add('search-result-highlight');
+    window.setTimeout(() => eventElement.classList.remove('search-result-highlight'), 5000);
+  }
+
+  const scrollToTarget = () => {
+    if (isAgenda) {
+      target.tabIndex = -1;
+      target.focus({ preventScroll: true });
+      const scroller = document.scrollingElement || document.documentElement;
+      const top = Math.max(0, scroller.scrollTop + target.getBoundingClientRect().top - 44);
+      scroller.scrollTo({ top, behavior: 'smooth' });
+    } else target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  if (isAgenda) window.setTimeout(() => requestAnimationFrame(scrollToTarget), 350);
+  else requestAnimationFrame(scrollToTarget);
+  pendingFocusDate = '';
+  pendingHighlightEventId = '';
 }
 
 async function searchEvents(query) {
@@ -249,11 +278,14 @@ eventSearchResults.addEventListener('click', (event) => {
   const result = event.target.closest('[data-search-date]');
   if (!result) return;
   eventSearchInput.blur();
+  focusTodayOnFirstRender = false;
   pendingFocusDate = result.dataset.searchDate;
   pendingHighlightEventId = result.dataset.searchEventId;
   const date = new Date(`${pendingFocusDate}T12:00:00`);
   currentMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-  loadEvents().catch(() => calendarEl.innerHTML = '');
+  loadEvents()
+    .then(() => focusSearchResult(pendingFocusDate, pendingHighlightEventId))
+    .catch(() => calendarEl.innerHTML = '');
 });
 
 async function teacherLogin() {
