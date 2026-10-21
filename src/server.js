@@ -16,7 +16,7 @@ const visibilityPath = path.join(dataDir, 'visibility.json');
 const scheduledPath = path.join(dataDir, 'scheduled-mails.json');
 const noticesPath = path.join(dataDir, 'notices.json');
 const madridTimeZone = 'Europe/Madrid';
-const eventSearchCacheTtlMs = 60_000;
+const eventSearchCacheTtlMs = 300_000;
 let eventSearchCache = null;
 
 async function readJson(file, fallback) {
@@ -1156,6 +1156,14 @@ async function createApp() {
   }, 15_000);
   scheduler.unref();
   processDueScheduledMails().catch((error) => console.error('Error inicial revisando correos programados:', error));
+  if (process.env.NODE_ENV === 'production') {
+    loadConfig()
+      .then((config) => {
+        const { from, to } = schoolYearDateRange(config);
+        return getSchoolYearEvents(config, from, to);
+      })
+      .catch((error) => console.error('No se pudo precargar la busqueda de eventos:', error.message));
+  }
 
   return app;
 }
