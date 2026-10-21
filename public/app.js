@@ -145,7 +145,7 @@ function renderCalendar(events, range) {
     const dayEvents = eventsByDate.get(dateKey) || [];
     const today = dateKey === todayKey;
     if (!dayEvents.length && !today) continue;
-    agendaDays.push(`<section class="agenda-day ${today ? 'today' : ''}" data-date="${dateKey}"><h3>${escapeHtml(agendaDate(day))}${today ? ' · Hoy' : ''}</h3><div class="agenda-day-events">${dayEvents.map((event) => `
+    agendaDays.push(`<section class="agenda-day ${today ? 'today' : ''}" id="agenda-day-${dateKey}" data-date="${dateKey}"><h3>${escapeHtml(agendaDate(day))}${today ? ' · Hoy' : ''}</h3><div class="agenda-day-events">${dayEvents.map((event) => `
       <article class="agenda-event ${event.allDay ? 'all-day-agenda-event' : ''} ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" data-event-id="${escapeHtml(event.id)}" data-event-date="${dateKey}" title="${escapeHtml(event.title)}">
         ${eventTime(event) ? `<time>${eventTime(event)}</time>` : ''}
         <span>${escapeHtml(event.title)}</span>
@@ -165,7 +165,8 @@ function renderCalendar(events, range) {
     const eventElement = highlightEventId
       ? [...calendarEl.querySelectorAll('[data-event-id]')].find((element) => element.dataset.eventId === highlightEventId && element.dataset.eventDate === focusDate)
       : null;
-    requestAnimationFrame(() => dayElement?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    const useNativeAgendaJump = Boolean(highlightEventId && agendaViewport.matches);
+    if (!useNativeAgendaJump) requestAnimationFrame(() => dayElement?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
     if (eventElement) {
       eventElement.classList.add('search-result-highlight');
       window.setTimeout(() => eventElement.classList.remove('search-result-highlight'), 5000);
@@ -179,6 +180,18 @@ function searchResultDate(event) {
   const date = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(event.start));
   const time = eventTime(event);
   return `${date}${time ? ` · ${time}` : ' · Todo el día'}`;
+}
+
+function jumpToAgendaDate(date) {
+  const target = [...calendarEl.querySelectorAll('.agenda-day[data-date]')].find((day) => day.dataset.date === date);
+  if (!target) return;
+  const hash = `#agenda-day-${date}`;
+  const cleanUrl = `${window.location.pathname}${window.location.search}`;
+  if (window.location.hash === hash) history.replaceState(history.state, '', cleanUrl);
+  window.location.hash = hash;
+  window.setTimeout(() => {
+    if (window.location.hash === hash) history.replaceState(history.state, '', cleanUrl);
+  }, 1200);
 }
 
 async function searchEvents(query) {
@@ -242,7 +255,10 @@ eventSearchResults.addEventListener('click', (event) => {
   pendingHighlightEventId = result.dataset.searchEventId;
   const date = new Date(`${pendingFocusDate}T12:00:00`);
   currentMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-  loadEvents().catch(() => calendarEl.innerHTML = '');
+  const targetDate = pendingFocusDate;
+  loadEvents()
+    .then(() => { if (agendaViewport.matches) jumpToAgendaDate(targetDate); })
+    .catch(() => calendarEl.innerHTML = '');
 });
 
 async function teacherLogin() {
