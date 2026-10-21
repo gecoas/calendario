@@ -308,6 +308,10 @@ function excludeTeachersOnlyCalendarEvents(events) {
   return events.filter((event) => event.calendarSource !== 'teachers');
 }
 
+function normalizeSearchText(value) {
+  return String(value || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+}
+
 function formatDate(value) {
   return new Intl.DateTimeFormat('es-ES', {
     timeZone: madridTimeZone,
@@ -938,6 +942,33 @@ async function createApp() {
     try {
       const events = filterByRange(await fetchEvents(req.query.from, req.query.to), req.query.from, req.query.to);
       res.json(req.query.audience === 'families' ? events.filter((event) => event.visibleToFamilies) : events);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/events/search', requireCalendarAccess, async (req, res, next) => {
+    try {
+      const query = normalizeSearchText(req.query.q).trim();
+      if (query.length < 2) return res.json([]);
+      const config = await loadConfig();
+      const schoolYears = String(config.schoolYear || '').match(/\d{4}/g)?.map(Number) || [];
+      const startYear = schoolYears[0] || new Date().getFullYear();
+      const endYear = schoolYears[1] || startYear + 1;
+      const from = `${startYear}-09-01`;
+      const to = `${endYear}-08-31`;
+      let events = filterByRange(await fetchEvents(from, to), from, to);
+      if (req.query.audience === 'families') events = events.filter((event) => event.visibleToFamilies);
+      const matches = events.filter((event) => normalizeSearchText([event.title, event.location, event.description].join(' ')).includes(query));
+      const now = Date.now();
+      matches.sort((a, b) => {
+        const aTime = new Date(a.start).getTime();
+        const bTime = new Date(b.start).getTime();
+        const aFuture = aTime >= now;
+        const bFuture = bTime >= now;
+        return aFuture === bFuture ? aTime - bTime : aFuture ? -1 : 1;
+      });
+      res.json(matches.slice(0, 100));
     } catch (error) {
       next(error);
     }

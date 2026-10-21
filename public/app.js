@@ -5,6 +5,8 @@ const previousButton = document.querySelector('#previous-month');
 const nextButton = document.querySelector('#next-month');
 const downloadPdfButton = document.querySelector('#download-month-pdf');
 const addGoogleCalendarButton = document.querySelector('#add-google-calendar');
+const eventSearchInput = document.querySelector('#event-search');
+const eventSearchResults = document.querySelector('#event-search-results');
 const audience = document.body.dataset.audience || 'families';
 const teacherLoginEl = document.querySelector('#teacher-login');
 const teacherCalendarEl = document.querySelector('#teacher-calendar');
@@ -12,6 +14,9 @@ const teacherStatusEl = document.querySelector('#teacher-login-status');
 let currentMonth = new Date();
 currentMonth.setDate(1);
 let focusTodayOnFirstRender = true;
+let pendingFocusDate = '';
+let searchTimer;
+let searchController;
 const agendaViewport = window.matchMedia('(max-width: 1024px) and (orientation: portrait)');
 
 function syncCalendarView() {
@@ -150,10 +155,44 @@ function renderCalendar(events, range) {
     <div class="agenda-view">${agendaDays.join('') || '<p class="agenda-empty">No hay eventos este mes.</p>'}</div>
   `;
   syncCalendarView();
-  if (focusTodayOnFirstRender) {
+  const focusDate = pendingFocusDate || (focusTodayOnFirstRender ? todayKey : '');
+  if (focusDate) {
     focusTodayOnFirstRender = false;
-    const selector = agendaViewport.matches ? '.agenda-day.today' : '.month-cell.today';
-    requestAnimationFrame(() => calendarEl.querySelector(selector)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    const selector = agendaViewport.matches ? '.agenda-day' : '.month-cell';
+    requestAnimationFrame(() => [...calendarEl.querySelectorAll(`${selector}[data-date]`)].find((element) => element.dataset.date === focusDate)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    pendingFocusDate = '';
+  }
+}
+
+function searchResultDate(event) {
+  const date = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(event.start));
+  const time = eventTime(event);
+  return `${date}${time ? ` · ${time}` : ' · Todo el día'}`;
+}
+
+async function searchEvents(query) {
+  if (searchController) searchController.abort();
+  if (query.trim().length < 2) {
+    eventSearchResults.hidden = true;
+    eventSearchResults.innerHTML = '';
+    return;
+  }
+  searchController = new AbortController();
+  eventSearchResults.hidden = false;
+  eventSearchResults.innerHTML = '<p class="search-message">Buscando…</p>';
+  try {
+    const params = new URLSearchParams({ audience, q: query.trim() });
+    const response = await fetch(`/api/events/search?${params}`, { signal: searchController.signal });
+    const events = await response.json();
+    if (!response.ok) throw new Error(events.error || 'No se pudo buscar');
+    eventSearchResults.innerHTML = events.length ? events.map((event) => `
+      <button type="button" class="search-result ${event.calendarSource === 'teachers' ? 'teacher-calendar-event' : ''}" data-search-date="${String(event.start).slice(0, 10)}">
+        <time>${escapeHtml(searchResultDate(event))}</time>
+        <span><strong>${escapeHtml(event.title)}</strong>${event.location ? `<small>${escapeHtml(event.location)}</small>` : ''}</span>
+      </button>
+    `).join('') : '<p class="search-message">No se encontraron eventos en este curso.</p>';
+  } catch (error) {
+    if (error.name !== 'AbortError') eventSearchResults.innerHTML = `<p class="search-message">${escapeHtml(error.message)}</p>`;
   }
 }
 
@@ -178,6 +217,19 @@ function downloadMonthPdf() {
 }
 
 downloadPdfButton.addEventListener('click', downloadMonthPdf);
+
+eventSearchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => searchEvents(eventSearchInput.value), 250);
+});
+eventSearchResults.addEventListener('click', (event) => {
+  const result = event.target.closest('[data-search-date]');
+  if (!result) return;
+  pendingFocusDate = result.dataset.searchDate;
+  const date = new Date(`${pendingFocusDate}T12:00:00`);
+  currentMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+  loadEvents().catch(() => calendarEl.innerHTML = '');
+});
 
 async function teacherLogin() {
   teacherStatusEl.textContent = 'Comprobando correo...';

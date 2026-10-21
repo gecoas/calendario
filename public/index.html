@@ -13,6 +13,12 @@
       <h1 id="course-title" class="course-title">Calendario curso 2026-2027</h1>
     </header>
     <section class="card month-card">
+      <div class="calendar-search">
+        <label for="event-search">Buscar eventos
+          <input id="event-search" type="search" placeholder="Título, ubicación o descripción" autocomplete="off">
+        </label>
+        <div id="event-search-results" class="search-results" aria-live="polite" hidden></div>
+      </div>
       <div class="month-controls">
         <button id="previous-month" class="secondary" aria-label="Mes anterior">‹</button>
         <div id="month-title" class="month-title"></div>

@@ -89,6 +89,15 @@ button.fit-button { width: fit-content; }
 .month-controls { display: grid; grid-template-columns: 64px 1fr 64px; gap: 1px; align-items: center; border-bottom: 1px solid var(--line); background: var(--line); }
 .month-controls button { height: 64px; border-radius: 0; font-size: 2rem; }
 .month-title { background: rgba(255, 250, 251, .94); height: 64px; display: grid; place-items: center; font-size: 1.35rem; font-weight: 900; text-transform: capitalize; color: var(--brand); }
+.calendar-search { padding: 12px; border-bottom: 1px solid var(--line); background: rgba(255, 250, 251, .72); }
+.search-results:not([hidden]) { display: grid; gap: 6px; margin-top: 10px; max-height: 42vh; overflow-y: auto; }
+.search-result { display: grid; grid-template-columns: minmax(120px, 26%) 1fr; gap: 10px; align-items: center; text-align: left; border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; background: white; color: var(--ink); }
+.search-result time { color: var(--brand); font-size: .85rem; font-weight: 800; }
+.search-result span, .search-result small { display: block; }
+.search-result small { margin-top: 3px; color: var(--muted); font-weight: 500; }
+.search-result.teacher-calendar-event { background: #ffeb8a; color: var(--brand); }
+.search-result.teacher-calendar-event small { color: var(--brand); }
+.search-message { margin: 8px 2px 0; }
 .month-actions { display: flex; justify-content: flex-end; padding: 12px; border-bottom: 1px solid var(--line); background: rgba(255, 250, 251, .72); }
 .month-actions.teacher-month-actions { justify-content: space-between; }
 .month-actions button { width: auto; }
@@ -125,6 +134,7 @@ button.fit-button { width: fit-content; }
   .month-controls { grid-template-columns: 48px 1fr 48px; }
   .month-controls button, .month-title { height: 52px; }
   .month-title { font-size: 1rem; }
+  .search-result { grid-template-columns: 1fr; gap: 3px; }
   .month-cell { min-height: 96px; padding: 5px; }
   .month-event { font-size: .68rem; padding: 3px 5px; }
   .public-header { grid-template-columns: 44px 1fr 44px; gap: 8px; }
