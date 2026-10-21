@@ -167,7 +167,14 @@ function renderCalendar(events, range) {
         : null;
       const dayElement = [...calendarEl.querySelectorAll(`${selector}[data-date]`)].find((element) => element.dataset.date === focusDate);
       const target = eventElement || dayElement;
-      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (agendaViewport.matches && eventElement) {
+        eventElement.tabIndex = -1;
+        eventElement.focus({ preventScroll: true });
+        const rect = eventElement.getBoundingClientRect();
+        const viewportHeight = window.visualViewport?.height || window.innerHeight;
+        const targetTop = window.scrollY + rect.top - Math.max(20, (viewportHeight - rect.height) / 2);
+        window.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+      } else target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       if (eventElement) {
         eventElement.classList.add('search-result-highlight');
         window.setTimeout(() => eventElement.classList.remove('search-result-highlight'), 5000);
