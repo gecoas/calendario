@@ -170,10 +170,12 @@ function renderCalendar(events, range) {
       if (agendaViewport.matches && eventElement) {
         eventElement.tabIndex = -1;
         eventElement.focus({ preventScroll: true });
-        const rect = eventElement.getBoundingClientRect();
-        const viewportHeight = window.visualViewport?.height || window.innerHeight;
-        const targetTop = window.scrollY + rect.top - Math.max(20, (viewportHeight - rect.height) / 2);
-        window.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+        window.setTimeout(() => requestAnimationFrame(() => {
+          const scroller = document.scrollingElement || document.documentElement;
+          const rect = eventElement.getBoundingClientRect();
+          const targetTop = Math.max(0, scroller.scrollTop + rect.top - 44);
+          scroller.scrollTo({ top: targetTop, behavior: 'smooth' });
+        }), 350);
       } else target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       if (eventElement) {
         eventElement.classList.add('search-result-highlight');
@@ -246,6 +248,7 @@ eventSearchInput.addEventListener('input', () => {
 eventSearchResults.addEventListener('click', (event) => {
   const result = event.target.closest('[data-search-date]');
   if (!result) return;
+  eventSearchInput.blur();
   pendingFocusDate = result.dataset.searchDate;
   pendingHighlightEventId = result.dataset.searchEventId;
   const date = new Date(`${pendingFocusDate}T12:00:00`);
